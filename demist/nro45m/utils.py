@@ -1,4 +1,4 @@
-__all__ = ["DIMS", "Array", "StrPath", "read"]
+__all__ = ["DIMS", "Array", "FreqRange", "StrPath", "read"]
 
 # standard library
 from os import PathLike
@@ -20,6 +20,7 @@ Array = Literal[
     "A25", "A26", "A27", "A28", "A29", "A30", "A31", "A32",
     # fmt: on
 ]
+FreqRange = tuple[float | None, float | None]  # (GHz, GHz)
 StrPath = PathLike[str] | str
 
 # constants

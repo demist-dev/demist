@@ -1,5 +1,6 @@
-__all__ = ["qlook", "utils"]
+__all__ = ["models", "qlook", "utils"]
 
 # dependencies
+from . import models
 from . import qlook
 from . import utils
