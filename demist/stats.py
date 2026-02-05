@@ -5,6 +5,7 @@ __all__ = [
     "count",
     "first",
     "last",
+    "mad",
     "max",
     "mean",
     "median",
@@ -347,6 +348,55 @@ def last(
         numeric_coord_func=numeric_coord_func,
         nonnumeric_coord_func=nonnumeric_coord_func,
         keep_attrs=keep_attrs,
+        **options,
+    )
+
+
+def mad(
+    da: xr.DataArray,
+    /,
+    *,
+    dim: Dims | dict[Hashable, int] = None,
+    boundary: Boundary = "trim",
+    side: Side | dict[Hashable, Side] = "left",
+    numeric_coord_func: Stat = "mean",
+    nonnumeric_coord_func: Stat = "first",
+    keep_attrs: bool | None = None,
+    skipna: bool | None = None,
+    **options: Any,
+) -> xr.DataArray:
+    """Apply a (chunked) ``mad`` operation to a DataArray.
+
+    Args:
+        da: Input DataArray.
+        dim: Name(s) of the dimension(s) along which the ``mad`` operation
+            will be applied. If a dictionary such as ``{dim: size, ...}``
+            is specified, then the ``mad`` operation will be applied
+            to every data chunk of given size.
+        boundary: Same option as ``xarray.DataArray.coarsen`` but defaults to ``'trim'``.
+        side: Same option as ``xarray.DataArray.coarsen`` and defualts to ``'left'``.
+        numeric_coord_func: Function or name of the statistical operation
+            for the numeric coordinates (bool, numbers, datetime, timedelta).
+        nonnumeric_coord_func: Function or name of the statistical operation
+            for the non-numeric coordinates (str, bytes, and general object).
+        keep_attrs: Whether to keep attributes in the ``mad`` operation.
+        skipna: Whether to ignore missing values in the ``mad`` operation.
+        **options: Other options to be passed to the ``mad`` operation.
+
+    Returns:
+        DataArray that the (chunked) ``mad`` operation is applied.
+
+    """
+    return apply(
+        da,
+        _mad,
+        dim=dim,
+        boundary=boundary,
+        side=side,
+        numeric_coord_func=numeric_coord_func,
+        nonnumeric_coord_func=nonnumeric_coord_func,
+        keep_attrs=keep_attrs,
+        skipna=skipna,
         **options,
     )
 
@@ -775,3 +825,20 @@ def _last(
         slices[ax] = LAST_INDEX
 
     return array[tuple(slices)]
+
+
+def _mad(
+    array: NDArray[Any],
+    axis: Sequence[int] | int | None = None,
+    **kwargs: Any,
+) -> NDArray[Any]:
+    """Internal implementation of median absolute deviation."""
+    keepdims = kwargs.pop("keepdims", False)
+    skipna = kwargs.pop("skipna", False)
+    median = np.nanmedian if skipna else np.median
+
+    return median(
+        np.abs(array - median(array, axis=axis, keepdims=True)),
+        axis=axis,
+        keepdims=keepdims,
+    )
