@@ -5,14 +5,14 @@ from collections.abc import Sequence
 
 # dependencies
 import xarray as xr
-from ndtools import Any, Range
+from ndtools import Any, Range as NDRange
 from scipy.ndimage import median_filter
 from sklearn.decomposition import TruncatedSVD
 from .io import DIMS
 from ..stats import mad, mean
 
 # type hints
-FreqRange = tuple[float | None, float | None]  # (GHz, GHz)
+Range = tuple[float | None, float | None]
 
 # constants
 SIGMA_OVER_MAD = 1.4826
@@ -111,7 +111,7 @@ def fit_poly(
     fit_degree: int = 1,
     fit_per_array: bool = True,
     fit_per_observation: bool = True,
-    fit_ranges: Sequence[FreqRange] = ((None, None),),
+    fit_ranges: Sequence[Range] = ((None, None),),
 ) -> xr.DataArray:
     """Fit polynomial model to a DataArray.
 
@@ -120,7 +120,7 @@ def fit_poly(
         fit_degree: Degree of the polynomial to fit.
         fit_per_array: Whether to fit per array.
         fit_per_observation: Whether to fit per observation.
-        fit_ranges: Frequency ranges to use for fitting.
+        fit_ranges: Frequency ranges in GHz to use for fitting.
 
     Returns:
         Modeled polynomial DataArray.
@@ -143,7 +143,7 @@ def fit_poly(
             fit_ranges=fit_ranges,
         )
 
-    fit_ranges = Any(Range(*args) for args in fit_ranges)
+    fit_ranges = Any(NDRange(*args) for args in fit_ranges)
     da_fit = da.sel(chan=da.frequency == fit_ranges)
     model = da_fit.polyfit(DIMS[1], fit_degree)
 
