@@ -1,0 +1,30 @@
+# This CITATION.cff file was generated with cffinit.
+# Visit https://bit.ly/cffinit to generate yours today!
+
+cff-version: 1.2.0
+title: demist
+message: >-
+  If you use this software, please cite it using the
+  metadata from this file.
+type: software
+authors:
+  - given-names: Akio
+    family-names: Taniguchi
+    email: a-taniguchi@mail.kitami-it.ac.jp
+    affiliation: Kitami Institute of Technology
+    orcid: 'https://orcid.org/0000-0002-9695-6183'
+repository-code: 'https://github.com/demist-dev/demist'
+url: 'https://demist-dev.github.io/demist'
+abstract: DEcomposition of MIxed signals for Submillimeter Telescopes
+keywords:
+  - astronomy
+  - demist
+  - millimeter
+  - nro-45m
+  - python
+  - radio-astronomy
+  - single-dish
+  - submillimeter
+license: MIT
+version: 0.1.0
+date-released: '2026-02-06'
