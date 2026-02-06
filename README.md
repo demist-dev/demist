@@ -21,4 +21,4 @@ pip install demist
 demist nro45m qlook psw /path/to/log --array A1,A3 --chan_binning 8 --polyfit_ranges [114.0,114.5],[115.5,116.0]
 ```
 
-See `demist nro45m qlook psw --help` for other options and their default values.
+See `demist nro45m qlook psw -- --help` for other options and their default values.

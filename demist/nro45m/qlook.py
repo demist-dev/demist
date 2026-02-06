@@ -2,6 +2,7 @@ __all__ = ["otf", "psw"]
 
 # standard library
 from collections.abc import Sequence
+from itertools import product
 from os import PathLike
 from pathlib import Path
 from typing import Any
@@ -20,9 +21,7 @@ FreqRange = tuple[float | None, float | None]  # (GHz, GHz)
 
 
 def otf(
-    log: PathLike[str] | str,
-    /,
-    *,
+    *logs: PathLike[str] | str,
     # options for reading SAM45 logs
     arrays: Sequence[Array] = ("A1",),
     chan_binning: int = 8,
@@ -40,6 +39,8 @@ def otf(
     sparse_per_observation: bool = False,
     sparse_prefilter: int = 3,
     sparse_threshold: float = 3.0,
+    # options for displaying
+    progress: bool = True,
     # options for figure saving
     figsize: tuple[float, float] = (10, 5),
     format: str = "pdf",
@@ -48,7 +49,7 @@ def otf(
     """Quick-look at a DE:MIST on-the-fly (OTF) mapping observation.
 
     Args:
-        log: Path to SAM45 log.
+        *logs: Path(s) to SAM45 log(s).
         arrays: Array names to read (A1-A32).
         chan_binning: Number of channels to bin together.
         time_binning: Number of time samples to bin together.
@@ -63,21 +64,21 @@ def otf(
         sparse_per_observation: Whether to fit sparse model per observation.
         sparse_prefilter: Size of median filter for sparse model fitting.
         sparse_threshold: Absolute S/N threshold for sparse model fitting.
+        progress: Whether to display progress bar.
         figsize: Size of the saved figure.
         format: File format of the saved figure.
         **options: Additional options for figure saving.
 
     Returns:
         Absolute path to the saved quick-look figure.
+        If multiple logs are given, the last log's name will be used for saving.
 
     """
     raise NotImplementedError("This command is not yet implemented.")
 
 
 def psw(
-    log: PathLike[str] | str,
-    /,
-    *,
+    *logs: PathLike[str] | str,
     # options for reading SAM45 logs
     arrays: Sequence[Array] = ("A1",),
     chan_binning: int = 8,
@@ -95,6 +96,8 @@ def psw(
     sparse_per_observation: bool = False,
     sparse_prefilter: int = 3,
     sparse_threshold: float = 3.0,
+    # options for displaying
+    progress: bool = True,
     # options for figure saving
     figsize: tuple[float, float] = (10, 5),
     format: str = "pdf",
@@ -103,7 +106,7 @@ def psw(
     """Quick-look at a DE:MIST position-switching (PSW) observation.
 
     Args:
-        log: Path to SAM45 log.
+        *logs: Path(s) to SAM45 log(s).
         arrays: Array names to read (A1-A32).
         chan_binning: Number of channels to bin together.
         time_binning: Number of time samples to bin together.
@@ -118,43 +121,51 @@ def psw(
         sparse_per_observation: Whether to fit sparse model per observation.
         sparse_prefilter: Size of median filter for sparse model fitting.
         sparse_threshold: Absolute S/N threshold for sparse model fitting.
+        progress: Whether to display progress bar.
         figsize: Size of the saved figure.
         format: File format of the saved figure.
         **options: Additional options for figure saving.
 
     Returns:
         Absolute path to the saved quick-look figure.
+        If multiple logs are given, the last log's name will be used for saving.
 
     """
     # create concatenated DataArray ready for analysis
     Ps: list[xr.DataArray] = []
 
-    for array in arrays:
-        P = read(
-            log,
-            array,
-            time_binning=time_binning,
-            chan_binning=chan_binning,
-        )
+    with tqdm(
+        desc="Reading SAM45 logs/arrays",
+        disable=not progress,
+        total=len(logs) * len(arrays),
+    ) as bar:
+        for log, array in product(logs, arrays):
+            P = read(
+                log,
+                array,
+                time_binning=time_binning,
+                chan_binning=chan_binning,
+            )
 
-        # swap ON/OFF for non-central beams
-        is_on = (P.state == "ON") & (P.beam != 1)
-        is_off = (P.state == "OFF") & (P.beam != 1)
-        P.state[is_on] = "OFF"
-        P.state[is_off] = "ON"
+            # swap ON/OFF for non-central beams
+            is_on = (P.state == "ON") & (P.beam != 1)
+            is_off = (P.state == "OFF") & (P.beam != 1)
+            P.state[is_on] = "OFF"
+            P.state[is_off] = "ON"
 
-        # assign calibrator (R) as a coordinate
-        calibrator = (
-            P.sel(time=P.state == "R")
-            .groupby("scan")
-            .apply(mean, dim=DIMS[0])
-            .swap_dims({"scan": DIMS[0]})
-            .interp_like(P, kwargs={"fill_value": "extrapolate"})
-            .reset_coords(drop=True)
-            .drop_attrs()
-        )
-        P = P.assign_coords(calibrator=calibrator)
-        Ps.append(P.sel(time=P.state.isin(["ON", "OFF"])))
+            # assign calibrator (R) as a coordinate
+            calibrator = (
+                P.sel(time=P.state == "R")
+                .groupby("scan")
+                .apply(mean, dim=DIMS[0])
+                .swap_dims({"scan": DIMS[0]})
+                .interp_like(P, kwargs={"fill_value": "extrapolate"})
+                .reset_coords(drop=True)
+                .drop_attrs()
+            )
+            P = P.assign_coords(calibrator=calibrator)
+            Ps.append(P.sel(time=P.state.isin(["ON", "OFF"])))
+            bar.update()
 
     P = xr.concat(Ps, dim=DIMS[0]).sortby(DIMS[0])
 
@@ -174,21 +185,27 @@ def psw(
     X: xr.DataArray = np.log(-(P - P.calibrator.data) / P.temperature)
     X_sparse = xr.zeros_like(X)
 
-    for _ in tqdm(range(demist_iterations)):
-        X_lowrank = fit_lowrank(
-            X - X_sparse,
-            fit_components=lowrank_components,
-            fit_off_only=lowrank_off_only,
-            fit_per_array=lowrank_per_array,
-            fit_per_observation=lowrank_per_observation,
-        )
-        X_sparse = fit_sparse(
-            X - X_lowrank,
-            fit_per_array=sparse_per_array,
-            fit_per_observation=sparse_per_observation,
-            fit_prefilter=sparse_prefilter,
-            fit_threshold=sparse_threshold,
-        )
+    with tqdm(
+        desc="Running DE:MIST analysis",
+        disable=not progress,
+        total=demist_iterations,
+    ) as bar:
+        for _ in range(demist_iterations):
+            X_lowrank = fit_lowrank(
+                X - X_sparse,
+                fit_components=lowrank_components,
+                fit_off_only=lowrank_off_only,
+                fit_per_array=lowrank_per_array,
+                fit_per_observation=lowrank_per_observation,
+            )
+            X_sparse = fit_sparse(
+                X - X_lowrank,
+                fit_per_array=sparse_per_array,
+                fit_per_observation=sparse_per_observation,
+                fit_prefilter=sparse_prefilter,
+                fit_threshold=sparse_threshold,
+            )
+            bar.update()
 
     T_demist = P.temperature * (1 - np.exp(X - X_lowrank))
 
