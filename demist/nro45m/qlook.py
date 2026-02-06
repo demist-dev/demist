@@ -43,8 +43,8 @@ def otf(
     progress: bool = True,
     # options for figure saving
     figsize: tuple[float, float] = (10, 5),
-    format: str = "pdf",
-    **options: Any,
+    xlim: tuple[float, float] = (None, None),
+    ylim: tuple[float, float] = (None, None),
 ) -> Path:
     """Quick-look at a DE:MIST on-the-fly (OTF) mapping observation.
 
@@ -66,8 +66,8 @@ def otf(
         sparse_threshold: Absolute S/N threshold for sparse model fitting.
         progress: Whether to display progress bar.
         figsize: Size of the saved figure.
-        format: File format of the saved figure.
-        **options: Additional options for figure saving.
+        xlim: X-axis limits for the saved figure.
+        ylim: Y-axis limits for the saved figure.
 
     Returns:
         Absolute path to the saved quick-look figure.
@@ -100,8 +100,8 @@ def psw(
     progress: bool = True,
     # options for figure saving
     figsize: tuple[float, float] = (10, 5),
-    format: str = "pdf",
-    **options: Any,
+    xlim: tuple[float, float] = (None, None),
+    ylim: tuple[float, float] = (None, None),
 ) -> Path:
     """Quick-look at a DE:MIST position-switching (PSW) observation.
 
@@ -123,8 +123,8 @@ def psw(
         sparse_threshold: Absolute S/N threshold for sparse model fitting.
         progress: Whether to display progress bar.
         figsize: Size of the saved figure.
-        format: File format of the saved figure.
-        **options: Additional options for figure saving.
+        xlim: X-axis limits for the saved figure.
+        ylim: Y-axis limits for the saved figure.
 
     Returns:
         Absolute path to the saved quick-look figure.
@@ -253,13 +253,15 @@ def psw(
 
     for ax in axes:
         ax.margins(x=0.0)
+        ax.set_xlim(xlim)
+        ax.set_ylim(ylim)
         ax.legend()
         ax.grid()
 
     fig.tight_layout()
 
     # save quick-look result
-    fig.savefig(name := Path(log).with_suffix(f".qlook.psw.{format}").name, **options)
+    fig.savefig(name := Path(log).with_suffix(f".qlook.psw.pdf").names)
     return Path(name).resolve()
 
 
