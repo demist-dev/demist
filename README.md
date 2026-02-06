@@ -12,3 +12,13 @@ DEcomposition of MIxed signals for Submillimeter Telescopes
 ```shell
 pip install demist
 ```
+
+## Quick look
+
+### NRO 45m PSW (both ON-OFF and ON-ON)
+
+```
+demist nro45m qlook psw /path/to/log --array A1,A3 --chan_binning 8 --polyfit_ranges [114.0,114.5],[115.5,116.0]
+```
+
+See `demist nro45m qlook psw --help` for other options and their default values.
