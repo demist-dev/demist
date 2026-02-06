@@ -5,7 +5,6 @@ from collections.abc import Sequence
 from itertools import product
 from os import PathLike
 from pathlib import Path
-from typing import Any
 
 # dependencies
 import matplotlib.pyplot as plt
@@ -17,7 +16,7 @@ from .io import DIMS, Array, read
 from ..stats import mean
 
 # type hints
-FreqRange = tuple[float | None, float | None]  # (GHz, GHz)
+Range = tuple[float | None, float | None]
 
 
 def otf(
@@ -28,7 +27,7 @@ def otf(
     time_binning: int = 5,
     # options for PolyFit analysis
     polyfit_degree: int = 1,
-    polyfit_ranges: Sequence[FreqRange] = ((None, None),),
+    polyfit_ranges: Sequence[Range] = ((None, None),),
     # options for DE:MIST analysis
     demist_iterations: int = 10,
     lowrank_components: int = 5,
@@ -43,8 +42,8 @@ def otf(
     progress: bool = True,
     # options for figure saving
     figsize: tuple[float, float] = (10, 5),
-    xlim: tuple[float, float] = (None, None),
-    ylim: tuple[float, float] = (None, None),
+    xlim: Range = (None, None),
+    ylim: Range = (None, None),
 ) -> Path:
     """Quick-look at a DE:MIST on-the-fly (OTF) mapping observation.
 
@@ -54,7 +53,7 @@ def otf(
         chan_binning: Number of channels to bin together.
         time_binning: Number of time samples to bin together.
         polyfit_degree: Degree of polynomial for PoltFit analysis.
-        polyfit_ranges: Frequency ranges to use for PolyFit analysis.
+        polyfit_ranges: Frequency ranges in GHz to use for PolyFit analysis.
         demist_iterations: Number of iterations for DE:MIST analysis.
         lowrank_components: Number of components for low-rank model fitting.
         lowrank_off_only: Whether to use only OFF samples for low-rank model fitting.
@@ -85,7 +84,7 @@ def psw(
     time_binning: int = 5,
     # options for PolyFit analysis
     polyfit_degree: int = 1,
-    polyfit_ranges: Sequence[FreqRange] = ((None, None),),
+    polyfit_ranges: Sequence[Range] = ((None, None),),
     # options for DE:MIST analysis
     demist_iterations: int = 10,
     lowrank_components: int = 5,
@@ -100,8 +99,8 @@ def psw(
     progress: bool = True,
     # options for figure saving
     figsize: tuple[float, float] = (10, 5),
-    xlim: tuple[float, float] = (None, None),
-    ylim: tuple[float, float] = (None, None),
+    xlim: Range = (None, None),
+    ylim: Range = (None, None),
 ) -> Path:
     """Quick-look at a DE:MIST position-switching (PSW) observation.
 
@@ -111,7 +110,7 @@ def psw(
         chan_binning: Number of channels to bin together.
         time_binning: Number of time samples to bin together.
         polyfit_degree: Degree of polynomial for PoltFit analysis.
-        polyfit_ranges: Frequency ranges to use for PolyFit analysis.
+        polyfit_ranges: Frequency ranges in GHz to use for PolyFit analysis.
         demist_iterations: Number of iterations for DE:MIST analysis.
         lowrank_components: Number of components for low-rank model fitting.
         lowrank_off_only: Whether to use only OFF samples for low-rank model fitting.
@@ -261,7 +260,7 @@ def psw(
     fig.tight_layout()
 
     # save quick-look result
-    fig.savefig(name := Path(log).with_suffix(f".qlook.psw.pdf").names)
+    fig.savefig(name := Path(log).with_suffix(f".qlook.psw.pdf").name)
     return Path(name).resolve()
 
 
