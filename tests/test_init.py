@@ -1,6 +1,7 @@
 # dependencies
-import demist  # type: ignore
+import demist
 
 
 def test_namespace() -> None:
-    pass
+    demist.nro45m.qlook.otf
+    demist.nro45m.qlook.psw
