@@ -2,12 +2,18 @@ __all__ = ["cli", "nro45m", "stats"]
 __version__ = "0.3.0"
 
 # dependencies
+from logging import basicConfig
 from fire import Fire
 from . import nro45m, stats
 
 
 def cli() -> None:
     """Run the command line interface."""
+    basicConfig(
+        datefmt="%Y-%m-%d %H:%M:%S",
+        format="[%(asctime)s %(name)s %(funcName)s %(levelname)s] %(message)s",
+    )
+
     Fire(
         {
             "nro45m": {

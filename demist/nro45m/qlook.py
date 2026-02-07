@@ -1,8 +1,10 @@
 __all__ = ["otf", "psw"]
 
 # standard library
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
+from contextlib import contextmanager
 from itertools import product
+from logging import DEBUG, getLogger
 from os import PathLike
 from pathlib import Path
 from warnings import catch_warnings, simplefilter
@@ -22,10 +24,27 @@ from .models import (
     fit_sparse,
 )
 from .io import Array, read
-from ..stats import mean
+from .. import __version__ as demist_version
 
 # type hints
 Range = tuple[float | None, float | None]
+
+# constants
+LOGGER = getLogger(__name__)
+
+
+@contextmanager
+def set_logger(debug: bool, /) -> Iterator[None]:
+    """Temporarily set the level of the module logger."""
+    level = LOGGER.level
+
+    if debug:
+        LOGGER.setLevel(DEBUG)
+
+    try:
+        yield
+    finally:
+        LOGGER.setLevel(level)
 
 
 def otf(
@@ -48,13 +67,14 @@ def otf(
     sparse_per_observation: bool = False,
     sparse_prefilter: int = 3,
     sparse_threshold: float = 3.0,
-    # options for displaying
-    progress: bool = True,
     # options for saving the quick-look results
     figsize: tuple[float, float] = (10, 5),
     simple: bool = True,
     xlim: Range = (None, None),
     ylim: Range = (None, None),
+    # options for displaying
+    debug: bool = False,
+    progress: bool = True,
 ) -> Path:
     """Quick-look at a DE:MIST on-the-fly (OTF) mapping observation.
 
@@ -75,17 +95,22 @@ def otf(
         sparse_per_observation: Whether to fit sparse model per observation.
         sparse_prefilter: Size of median filter for sparse model fitting.
         sparse_threshold: Absolute S/N threshold for sparse model fitting.
-        progress: Whether to display progress bar.
         figsize: Size of the saved quick-look results.
         simple: Whether not to save miscellaneous information.
         xlim: X-axis limits for the saved quick-look results.
         ylim: Y-axis limits for the saved quick-look results.
+        debug: Whether to display debug information.
+        progress: Whether to display progress bar.
 
     Returns:
         Absolute path to the saved quick-look results.
         If multiple logs are given, the last log's name will be used for saving.
 
     """
+    with set_logger(debug):
+        for key, val in (params := locals().copy()).items():
+            LOGGER.debug(f"{key}: {val!r}")
+
     raise NotImplementedError("This command is not yet implemented.")
 
 
@@ -109,13 +134,14 @@ def psw(
     sparse_per_observation: bool = False,
     sparse_prefilter: int = 3,
     sparse_threshold: float = 3.0,
-    # options for displaying
-    progress: bool = True,
     # options for saving the quick-look results
     figsize: tuple[float, float] = (10, 5),
     simple: bool = True,
     xlim: Range = (None, None),
     ylim: Range = (None, None),
+    # options for displaying
+    debug: bool = False,
+    progress: bool = True,
 ) -> Path:
     """Quick-look at a DE:MIST position-switching (PSW) observation.
 
@@ -136,17 +162,22 @@ def psw(
         sparse_per_observation: Whether to fit sparse model per observation.
         sparse_prefilter: Size of median filter for sparse model fitting.
         sparse_threshold: Absolute S/N threshold for sparse model fitting.
-        progress: Whether to display progress bar.
         figsize: Size of the saved quick-look results.
         simple: Whether not to save miscellaneous information.
         xlim: X-axis limits for the saved quick-look results.
         ylim: Y-axis limits for the saved quick-look results.
+        debug: Whether to display debug information.
+        progress: Whether to display progress bar.
 
     Returns:
         Absolute path to the saved quick-look results.
         If multiple logs are given, the last log's name will be used for saving.
 
     """
+    with set_logger(debug):
+        for key, val in (params := locals().copy()).items():
+            LOGGER.debug(f"{key}: {val!r}")
+
     # Read SAM45 logs and arrays
     with tqdm(
         desc="Reading SAM45 logs/arrays",
@@ -264,8 +295,21 @@ def psw(
             disable=not progress,
             total=1 if simple else 2,
         ) as bar,
-        PdfPages(name := Path(log).name + f".qlook.psw.pdf") as pdf,
+        PdfPages(name := Path(log).name + f".{'+'.join(arrays)}.qlook.psw.pdf") as pdf,
     ):
+        keywords = [
+            f"{key}={value}".replace(" ", "")
+            for key, value in {
+                "demist_version": demist_version,
+                "demist_function": "demist.nro45m.qlook.psw",
+                **params,
+            }.items()
+        ]
+
+        pdfinfo = pdf.infodict()
+        pdfinfo["Title"] = "DE:MIST Quick-Look Results (NRO 45m PSW)"
+        pdfinfo["Keywords"] = ", ".join(keywords)
+
         pdf.savefig(
             plot_integrated_info(
                 figsize=figsize,
