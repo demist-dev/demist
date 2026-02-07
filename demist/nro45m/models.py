@@ -8,7 +8,6 @@ import xarray as xr
 from ndtools import Any, Range as NDRange
 from scipy.ndimage import median_filter
 from sklearn.decomposition import TruncatedSVD
-from .io import DIMS
 from ..stats import mad, mean
 
 # type hints
@@ -54,7 +53,7 @@ def fit_sky(
     return (
         da.sel(time=da.state == "OFF")
         .groupby("scan")
-        .apply(mean, dim=DIMS[0])
+        .apply(mean, dim="time")
         .swap_dims({"scan": "time"})
         .interp_like(da, kwargs={"fill_value": "extrapolate"})
     )
@@ -145,7 +144,7 @@ def fit_poly(
 
     fit_ranges = Any(NDRange(*args) for args in fit_ranges)
     da_fit = da.sel(chan=da.frequency == fit_ranges)
-    model = da_fit.polyfit(DIMS[1], fit_degree)
+    model = da_fit.polyfit("chan", fit_degree)
 
     return (
         xr.polyval(da_fit.chan, model.polyfit_coefficients)
@@ -193,7 +192,7 @@ def fit_sparse(
             fit_threshold=fit_threshold,
         )
 
-    signal = da.sel(time=da.state == "ON").mean(DIMS[0])
+    signal = da.sel(time=da.state == "ON").mean("time")
     signal.data = median_filter(signal.data, fit_prefilter)
     noise = SIGMA_OVER_MAD * mad(signal)
     signal[abs(signal / noise) < fit_threshold] = 0
