@@ -14,7 +14,7 @@ import xarray as xr
 from tqdm import tqdm
 from matplotlib.backends.backend_pdf import PdfPages
 from matplotlib.figure import Figure
-from .models import fit_lowrank, fit_poly, fit_sky, fit_sparse
+from .models import fit_background, fit_lowrank, fit_polynomial, fit_sparse
 from .io import Array, read
 from ..stats import mean
 
@@ -141,14 +141,14 @@ def psw(
         If multiple logs are given, the last log's name will be used for saving.
 
     """
-    # create concatenated DataArray ready for analysis
-    Ps: list[xr.DataArray] = []
-
+    # Read SAM45 logs and arrays
     with tqdm(
         desc="Reading SAM45 logs/arrays",
         disable=not progress,
         total=len(logs) * len(arrays),
     ) as bar:
+        Ps: list[xr.DataArray] = []
+
         for log, array in product(logs, arrays):
             P = read(
                 log,
@@ -163,20 +163,10 @@ def psw(
             P.state[is_on] = "OFF"
             P.state[is_off] = "ON"
 
-            # assign calibrator (R) as a coordinate
-            calibrator = (
-                P.sel(time=P.state == "R")
-                .groupby("scan")
-                .apply(mean, dim="time")
-                .swap_dims({"scan": "time"})
-                .interp_like(P, kwargs={"fill_value": "extrapolate"})
-                .reset_coords(drop=True)
-            )
-            P = P.assign_coords(calibrator=calibrator)
-            Ps.append(P.sel(time=P.state.isin(["ON", "OFF"])))
+            Ps.append(P)
             bar.update(1)
 
-    P = xr.concat(Ps, dim="time").sortby("time")
+        P = xr.concat(Ps, dim="time").sortby("time")
 
     # run PolyFit (conventional) analysis
     with tqdm(
@@ -184,9 +174,12 @@ def psw(
         disable=not progress,
         total=1,
     ) as bar:
-        P_sky = fit_sky(P)
-        T: xr.DataArray = P.temperature * (P - P_sky) / (P.calibrator - P_sky)
-        T_poly = fit_poly(
+        P_cal = fit_background(P, "R").sel(time=P.state.isin(["ON", "OFF"]))
+        P_sky = fit_background(P, "OFF").sel(time=P.state.isin(["ON", "OFF"]))
+        P = P.sel(time=P.state.isin(["ON", "OFF"]))
+
+        T: xr.DataArray = P.temperature * (P - P_sky) / (P_cal - P_sky)
+        T_poly = fit_polynomial(
             T,
             fit_degree=polyfit_degree,
             fit_ranges=polyfit_ranges,
@@ -201,7 +194,7 @@ def psw(
         disable=not progress,
         total=demist_iterations,
     ) as bar:
-        X: xr.DataArray = np.log(-(P - P.calibrator) / P.temperature)
+        X: xr.DataArray = np.log(-(P - P_cal) / P.temperature)
         X_sparse = xr.zeros_like(X)
 
         for n in range(demist_iterations):
@@ -232,7 +225,7 @@ def psw(
             else:
                 bar.update(1)
 
-    # calculate integrate spectra
+    # calculate final spectra
     with tqdm(
         desc="Calculating final spectra",
         disable=not progress,
@@ -242,7 +235,7 @@ def psw(
         T_polyfit = T_polyfit.assign_attrs(long_name=r"$T_{\mathrm{A}}^{\ast}$")
         T_demist: xr.DataArray = P.temperature * (1 - np.exp(X - X_lowrank))
         T_demist = T_demist.assign_attrs(long_name=r"$T_{\mathrm{A}}^{\ast}$")
-        T_sys: xr.DataArray = P.temperature / (P.calibrator / P_sky - 1)
+        T_sys: xr.DataArray = P.temperature / (P_cal / P_sky - 1)
         T_sys = T_sys.assign_attrs(long_name=r"$T_{\mathrm{sys}}$")
 
         spec_polyfit = to_spectrum(
@@ -275,7 +268,7 @@ def psw(
         )
         bar.update(1)
 
-    # plot and save quick-look results
+    # plot and save results
     with (
         tqdm(
             desc="Plotting/saving results",

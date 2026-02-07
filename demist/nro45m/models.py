@@ -1,4 +1,4 @@
-__all__ = ["fit_lowrank", "fit_poly", "fit_sky", "fit_sparse"]
+__all__ = ["fit_background", "fit_lowrank", "fit_polynomial", "fit_sparse"]
 
 # standard library
 from collections.abc import Sequence
@@ -17,22 +17,24 @@ Range = tuple[float | None, float | None]
 SIGMA_OVER_MAD = 1.4826
 
 
-def fit_sky(
+def fit_background(
     da: xr.DataArray,
+    target: str,
     /,
     *,
     fit_per_array: bool = True,
     fit_per_observation: bool = True,
 ) -> xr.DataArray:
-    """Fit sky (i.e. background level) model to a DataArray.
+    """Fit background model to a DataArray.
 
     Args:
         da: DataArray to fit.
+        target: Target state to fit.
         fit_per_array: Whether to fit per array.
         fit_per_observation: Whether to fit per observation.
 
     Returns:
-        Modeled sky DataArray.
+        Modeled background DataArray.
 
     """
     groups: list[str] = []
@@ -45,18 +47,22 @@ def fit_sky(
 
     if groups:
         return da.groupby(groups).apply(
-            fit_sky,
+            fit_background,
+            args=(target,),
             fit_per_array=False,
             fit_per_observation=False,
         )
 
-    return (
-        da.sel(time=da.state == "OFF")
+    model = (
+        da.sel(time=da.state == target)
         .groupby("scan")
-        .apply(mean, dim="time")
-        .swap_dims({"scan": "time"})
-        .interp_like(da, kwargs={"fill_value": "extrapolate"})
+        .apply(mean, dim="time", keep_dims=True)
     )
+
+    if model.sizes["time"] > 1:
+        return model.interp_like(da, kwargs={"fill_value": "extrapolate"})
+    else:
+        return model.reindex_like(da, method="nearest")
 
 
 def fit_lowrank(
@@ -103,7 +109,7 @@ def fit_lowrank(
     return xr.zeros_like(da) + model.inverse_transform(model.transform(da))
 
 
-def fit_poly(
+def fit_polynomial(
     da: xr.DataArray,
     /,
     *,
@@ -135,7 +141,7 @@ def fit_poly(
 
     if groups:
         return da.groupby(groups).apply(
-            fit_poly,
+            fit_polynomial,
             fit_degree=fit_degree,
             fit_per_array=False,
             fit_per_observation=False,
