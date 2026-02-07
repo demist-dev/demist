@@ -1,8 +1,13 @@
 [
     {
-        "name": "0.3.0 (latest)",
-        "version": "0.3.0",
+        "name": "0.4.0 (latest)",
+        "version": "0.4.0",
         "url": "https://demist-dev.github.io/demist/"
+    },
+    {
+        "name": "0.3.0",
+        "version": "0.3.0",
+        "url": "https://demist-dev.github.io/demist/0.3.0/"
     },
     {
         "name": "0.2.0",
