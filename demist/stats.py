@@ -48,6 +48,7 @@ def apply(
     numeric_coord_func: Stat = "mean",
     nonnumeric_coord_func: Stat = "first",
     keep_attrs: bool | None = None,
+    keep_dims: bool | None = None,
     **options: Any,
 ) -> xr.DataArray:
     """Apply a (chunked) statistical operation to a DataArray.
@@ -66,6 +67,7 @@ def apply(
         nonnumeric_coord_func: Function or name of the statistical operation
             for the non-numeric coordinates (str, bytes, and general object).
         keep_attrs: Whether to keep attributes in the statistical operation.
+        keep_dims: Whether to keep dimensions in the statistical operation.
         **options: Other options to be passed to the statistical operation.
 
     Returns:
@@ -107,19 +109,20 @@ def apply(
     )
 
     if isinstance(func, str):
-        return getattr(coarsened, func)(
+        reduced = getattr(coarsened, func)(
             keep_attrs=keep_attrs,
             **options,
-        ).squeeze()
-
-    if callable(func):
-        return coarsened.reduce(
+        )
+    elif callable(func):
+        reduced = coarsened.reduce(
             func=func,
             keep_attrs=keep_attrs,
             **options,
-        ).squeeze()
+        )
+    else:
+        raise TypeError("Func must be either callable or string.")
 
-    raise TypeError("Func must be either callable or string.")
+    return reduced if keep_dims else reduced.squeeze()
 
 
 def all(
@@ -132,6 +135,7 @@ def all(
     numeric_coord_func: Stat = "mean",
     nonnumeric_coord_func: Stat = "first",
     keep_attrs: bool | None = None,
+    keep_dims: bool | None = None,
     **options: Any,
 ) -> xr.DataArray:
     """Apply a (chunked) ``all`` operation to a DataArray.
@@ -148,8 +152,9 @@ def all(
             for the numeric coordinates (bool, numbers, datetime, timedelta).
         nonnumeric_coord_func: Function or name of the statistical operation
             for the non-numeric coordinates (str, bytes, and general object).
-        keep_attrs: Whether to keep attributes in the ``all``  operation.
-        **options: Other options to be passed to the ``all``  operation.
+        keep_attrs: Whether to keep attributes in the ``all`` operation.
+        keep_dims: Whether to keep dimensions in the ``all`` operation.
+        **options: Other options to be passed to the ``all`` operation.
 
     Returns:
         DataArray that the (chunked) ``all``  operation is applied.
@@ -164,6 +169,7 @@ def all(
         numeric_coord_func=numeric_coord_func,
         nonnumeric_coord_func=nonnumeric_coord_func,
         keep_attrs=keep_attrs,
+        keep_dims=keep_dims,
         **options,
     )
 
@@ -178,6 +184,7 @@ def any(
     numeric_coord_func: Stat = "mean",
     nonnumeric_coord_func: Stat = "first",
     keep_attrs: bool | None = None,
+    keep_dims: bool | None = None,
     **options: Any,
 ) -> xr.DataArray:
     """Apply a (chunked) ``any`` operation to a DataArray.
@@ -195,6 +202,7 @@ def any(
         nonnumeric_coord_func: Function or name of the statistical operation
             for the non-numeric coordinates (str, bytes, and general object).
         keep_attrs: Whether to keep attributes in the ``any`` operation.
+        keep_dims: Whether to keep dimensions in the ``any`` operation.
         **options: Other options to be passed to the ``any`` operation.
 
     Returns:
@@ -210,6 +218,7 @@ def any(
         numeric_coord_func=numeric_coord_func,
         nonnumeric_coord_func=nonnumeric_coord_func,
         keep_attrs=keep_attrs,
+        keep_dims=keep_dims,
         **options,
     )
 
@@ -224,6 +233,7 @@ def count(
     numeric_coord_func: Stat = "mean",
     nonnumeric_coord_func: Stat = "first",
     keep_attrs: bool | None = None,
+    keep_dims: bool | None = None,
     **options: Any,
 ) -> xr.DataArray:
     """Apply a (chunked) ``count`` operation to a DataArray.
@@ -241,6 +251,7 @@ def count(
         nonnumeric_coord_func: Function or name of the statistical operation
             for the non-numeric coordinates (str, bytes, and general object).
         keep_attrs: Whether to keep attributes in the ``count`` operation.
+        keep_dims: Whether to keep dimensions in the ``count`` operation.
         **options: Other options to be passed to the ``count`` operation.
 
     Returns:
@@ -256,6 +267,7 @@ def count(
         numeric_coord_func=numeric_coord_func,
         nonnumeric_coord_func=nonnumeric_coord_func,
         keep_attrs=keep_attrs,
+        keep_dims=keep_dims,
         **options,
     )
 
@@ -270,6 +282,7 @@ def first(
     numeric_coord_func: Stat = "mean",
     nonnumeric_coord_func: Stat = "first",
     keep_attrs: bool | None = None,
+    keep_dims: bool | None = None,
     **options: Any,
 ) -> xr.DataArray:
     """Apply a (chunked) ``first`` operation to a DataArray.
@@ -287,6 +300,7 @@ def first(
         nonnumeric_coord_func: Function or name of the statistical operation
             for the non-numeric coordinates (str, bytes, and general object).
         keep_attrs: Whether to keep attributes in the ``first`` operation.
+        keep_dims: Whether to keep dimensions in the ``first`` operation.
         **options: Other options to be passed to the ``first`` operation.
 
     Returns:
@@ -302,6 +316,7 @@ def first(
         numeric_coord_func=numeric_coord_func,
         nonnumeric_coord_func=nonnumeric_coord_func,
         keep_attrs=keep_attrs,
+        keep_dims=keep_dims,
         **options,
     )
 
@@ -316,6 +331,7 @@ def last(
     numeric_coord_func: Stat = "mean",
     nonnumeric_coord_func: Stat = "first",
     keep_attrs: bool | None = None,
+    keep_dims: bool | None = None,
     **options: Any,
 ) -> xr.DataArray:
     """Apply a (chunked) ``last`` operation to a DataArray.
@@ -333,6 +349,7 @@ def last(
         nonnumeric_coord_func: Function or name of the statistical operation
             for the non-numeric coordinates (str, bytes, and general object).
         keep_attrs: Whether to keep attributes in the ``last`` operation.
+        keep_dims: Whether to keep dimensions in the ``last`` operation.
         **options: Other options to be passed to the ``last`` operation.
 
     Returns:
@@ -348,6 +365,7 @@ def last(
         numeric_coord_func=numeric_coord_func,
         nonnumeric_coord_func=nonnumeric_coord_func,
         keep_attrs=keep_attrs,
+        keep_dims=keep_dims,
         **options,
     )
 
@@ -362,6 +380,7 @@ def mad(
     numeric_coord_func: Stat = "mean",
     nonnumeric_coord_func: Stat = "first",
     keep_attrs: bool | None = None,
+    keep_dims: bool | None = None,
     skipna: bool | None = None,
     **options: Any,
 ) -> xr.DataArray:
@@ -380,6 +399,7 @@ def mad(
         nonnumeric_coord_func: Function or name of the statistical operation
             for the non-numeric coordinates (str, bytes, and general object).
         keep_attrs: Whether to keep attributes in the ``mad`` operation.
+        keep_dims: Whether to keep dimensions in the ``mad`` operation.
         skipna: Whether to ignore missing values in the ``mad`` operation.
         **options: Other options to be passed to the ``mad`` operation.
 
@@ -396,6 +416,7 @@ def mad(
         numeric_coord_func=numeric_coord_func,
         nonnumeric_coord_func=nonnumeric_coord_func,
         keep_attrs=keep_attrs,
+        keep_dims=keep_dims,
         skipna=skipna,
         **options,
     )
@@ -411,6 +432,7 @@ def max(
     numeric_coord_func: Stat = "mean",
     nonnumeric_coord_func: Stat = "first",
     keep_attrs: bool | None = None,
+    keep_dims: bool | None = None,
     skipna: bool | None = None,
     **options: Any,
 ) -> xr.DataArray:
@@ -429,6 +451,7 @@ def max(
         nonnumeric_coord_func: Function or name of the statistical operation
             for the non-numeric coordinates (str, bytes, and general object).
         keep_attrs: Whether to keep attributes in the ``max`` operation.
+        keep_dims: Whether to keep dimensions in the ``max`` operation.
         skipna: Whether to ignore missing values in the ``max`` operation.
         **options: Other options to be passed to the ``max`` operation.
 
@@ -445,6 +468,7 @@ def max(
         numeric_coord_func=numeric_coord_func,
         nonnumeric_coord_func=nonnumeric_coord_func,
         keep_attrs=keep_attrs,
+        keep_dims=keep_dims,
         skipna=skipna,
         **options,
     )
@@ -460,6 +484,7 @@ def mean(
     numeric_coord_func: Stat = "mean",
     nonnumeric_coord_func: Stat = "first",
     keep_attrs: bool | None = None,
+    keep_dims: bool | None = None,
     skipna: bool | None = None,
     **options: Any,
 ) -> xr.DataArray:
@@ -478,6 +503,7 @@ def mean(
         nonnumeric_coord_func: Function or name of the statistical operation
             for the non-numeric coordinates (str, bytes, and general object).
         keep_attrs: Whether to keep attributes in the ``mean`` operation.
+        keep_dims: Whether to keep dimensions in the ``mean`` operation.
         skipna: Whether to ignore missing values in the ``mean`` operation.
         **options: Other options to be passed to the ``mean`` operation.
 
@@ -494,6 +520,7 @@ def mean(
         numeric_coord_func=numeric_coord_func,
         nonnumeric_coord_func=nonnumeric_coord_func,
         keep_attrs=keep_attrs,
+        keep_dims=keep_dims,
         skipna=skipna,
         **options,
     )
@@ -509,6 +536,7 @@ def median(
     numeric_coord_func: Stat = "mean",
     nonnumeric_coord_func: Stat = "first",
     keep_attrs: bool | None = None,
+    keep_dims: bool | None = None,
     skipna: bool | None = None,
     **options: Any,
 ) -> xr.DataArray:
@@ -527,6 +555,7 @@ def median(
         nonnumeric_coord_func: Function or name of the statistical operation
             for the non-numeric coordinates (str, bytes, and general object).
         keep_attrs: Whether to keep attributes in the ``median`` operation.
+        keep_dims: Whether to keep dimensions in the ``median`` operation.
         skipna: Whether to ignore missing values in the ``median`` operation.
         **options: Other options to be passed to the ``median`` operation.
 
@@ -543,6 +572,7 @@ def median(
         numeric_coord_func=numeric_coord_func,
         nonnumeric_coord_func=nonnumeric_coord_func,
         keep_attrs=keep_attrs,
+        keep_dims=keep_dims,
         skipna=skipna,
         **options,
     )
@@ -558,6 +588,7 @@ def min(
     numeric_coord_func: Stat = "mean",
     nonnumeric_coord_func: Stat = "first",
     keep_attrs: bool | None = None,
+    keep_dims: bool | None = None,
     skipna: bool | None = None,
     **options: Any,
 ) -> xr.DataArray:
@@ -576,6 +607,7 @@ def min(
         nonnumeric_coord_func: Function or name of the statistical operation
             for the non-numeric coordinates (str, bytes, and general object).
         keep_attrs: Whether to keep attributes in the ``min`` operation.
+        keep_dims: Whether to keep dimensions in the ``min`` operation.
         skipna: Whether to ignore missing values in the ``min`` operation.
         **options: Other options to be passed to the ``min`` operation.
 
@@ -592,6 +624,7 @@ def min(
         numeric_coord_func=numeric_coord_func,
         nonnumeric_coord_func=nonnumeric_coord_func,
         keep_attrs=keep_attrs,
+        keep_dims=keep_dims,
         skipna=skipna,
         **options,
     )
@@ -607,6 +640,7 @@ def prod(
     numeric_coord_func: Stat = "mean",
     nonnumeric_coord_func: Stat = "first",
     keep_attrs: bool | None = None,
+    keep_dims: bool | None = None,
     skipna: bool | None = None,
     **options: Any,
 ) -> xr.DataArray:
@@ -625,6 +659,7 @@ def prod(
         nonnumeric_coord_func: Function or name of the statistical operation
             for the non-numeric coordinates (str, bytes, and general object).
         keep_attrs: Whether to keep attributes in the ``prod`` operation.
+        keep_dims: Whether to keep dimensions in the ``prod`` operation.
         skipna: Whether to ignore missing values in the ``prod`` operation.
         **options: Other options to be passed to the ``prod`` operation.
 
@@ -641,6 +676,7 @@ def prod(
         numeric_coord_func=numeric_coord_func,
         nonnumeric_coord_func=nonnumeric_coord_func,
         keep_attrs=keep_attrs,
+        keep_dims=keep_dims,
         skipna=skipna,
         **options,
     )
@@ -656,6 +692,7 @@ def std(
     numeric_coord_func: Stat = "mean",
     nonnumeric_coord_func: Stat = "first",
     keep_attrs: bool | None = None,
+    keep_dims: bool | None = None,
     skipna: bool | None = None,
     **options: Any,
 ) -> xr.DataArray:
@@ -674,6 +711,7 @@ def std(
         nonnumeric_coord_func: Function or name of the statistical operation
             for the non-numeric coordinates (str, bytes, and general object).
         keep_attrs: Whether to keep attributes in the ``std`` operation.
+        keep_dims: Whether to keep dimensions in the ``std`` operation.
         skipna: Whether to ignore missing values in the ``std`` operation.
         **options: Other options to be passed to the ``std`` operation.
 
@@ -690,6 +728,7 @@ def std(
         numeric_coord_func=numeric_coord_func,
         nonnumeric_coord_func=nonnumeric_coord_func,
         keep_attrs=keep_attrs,
+        keep_dims=keep_dims,
         skipna=skipna,
         **options,
     )
@@ -705,6 +744,7 @@ def sum(
     numeric_coord_func: Stat = "mean",
     nonnumeric_coord_func: Stat = "first",
     keep_attrs: bool | None = None,
+    keep_dims: bool | None = None,
     skipna: bool | None = None,
     **options: Any,
 ) -> xr.DataArray:
@@ -723,6 +763,7 @@ def sum(
         nonnumeric_coord_func: Function or name of the statistical operation
             for the non-numeric coordinates (str, bytes, and general object).
         keep_attrs: Whether to keep attributes in the ``sum`` operation.
+        keep_dims: Whether to keep dimensions in the ``sum`` operation.
         skipna: Whether to ignore missing values in the ``sum`` operation.
         **options: Other options to be passed to the ``sum`` operation.
 
@@ -739,6 +780,7 @@ def sum(
         numeric_coord_func=numeric_coord_func,
         nonnumeric_coord_func=nonnumeric_coord_func,
         keep_attrs=keep_attrs,
+        keep_dims=keep_dims,
         skipna=skipna,
         **options,
     )
@@ -754,6 +796,7 @@ def var(
     numeric_coord_func: Stat = "mean",
     nonnumeric_coord_func: Stat = "first",
     keep_attrs: bool | None = None,
+    keep_dims: bool | None = None,
     skipna: bool | None = None,
     **options: Any,
 ) -> xr.DataArray:
@@ -772,6 +815,7 @@ def var(
         nonnumeric_coord_func: Function or name of the statistical operation
             for the non-numeric coordinates (str, bytes, and general object).
         keep_attrs: Whether to keep attributes in the ``var`` operation.
+        keep_dims: Whether to keep dimensions in the ``var`` operation.
         skipna: Whether to ignore missing values in the ``var`` operation.
         **options: Other options to be passed to the ``var`` operation.
 
@@ -787,8 +831,9 @@ def var(
         side=side,
         numeric_coord_func=numeric_coord_func,
         nonnumeric_coord_func=nonnumeric_coord_func,
-        skipna=skipna,
         keep_attrs=keep_attrs,
+        keep_dims=keep_dims,
+        skipna=skipna,
         **options,
     )
 

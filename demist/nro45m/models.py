@@ -1,9 +1,16 @@
-__all__ = ["fit_lowrank", "fit_poly", "fit_sky", "fit_sparse"]
+__all__ = [
+    "fit_background",
+    "fit_integration",
+    "fit_lowrank",
+    "fit_polynomial",
+    "fit_sparse",
+]
 
 # standard library
 from collections.abc import Sequence
 
 # dependencies
+import numpy as np
 import xarray as xr
 from ndtools import Any, Range as NDRange
 from scipy.ndimage import median_filter
@@ -17,22 +24,24 @@ Range = tuple[float | None, float | None]
 SIGMA_OVER_MAD = 1.4826
 
 
-def fit_sky(
+def fit_background(
     da: xr.DataArray,
+    target: str,
     /,
     *,
     fit_per_array: bool = True,
     fit_per_observation: bool = True,
 ) -> xr.DataArray:
-    """Fit sky (i.e. background level) model to a DataArray.
+    """Fit background model to a DataArray.
 
     Args:
         da: DataArray to fit.
+        target: Target state to fit.
         fit_per_array: Whether to fit per array.
         fit_per_observation: Whether to fit per observation.
 
     Returns:
-        Modeled sky DataArray.
+        Modeled background DataArray.
 
     """
     groups: list[str] = []
@@ -45,17 +54,59 @@ def fit_sky(
 
     if groups:
         return da.groupby(groups).apply(
-            fit_sky,
+            fit_background,
+            args=(target,),
             fit_per_array=False,
             fit_per_observation=False,
         )
 
-    return (
-        da.sel(time=da.state == "OFF")
+    model = (
+        da.sel(time=da.state == target)
         .groupby("scan")
-        .apply(mean, dim="time")
-        .swap_dims({"scan": "time"})
-        .interp_like(da, kwargs={"fill_value": "extrapolate"})
+        .apply(mean, dim="time", keep_dims=True)
+    )
+
+    if model.sizes["time"] > 1:
+        return model.interp_like(da, kwargs={"fill_value": "extrapolate"})
+    else:
+        return model.reindex_like(da, method="nearest")
+
+
+def fit_integration(
+    da: xr.DataArray,
+    sigma: xr.DataArray,
+    /,
+    fit_seed: int = 0,
+) -> xr.DataArray:
+    """Fit cumulative-integration model to a DataArray.
+
+    Args:
+        da: DataArray to fit.
+        sigma: DataArray of noise level.
+        fit_seed: Random seed for shuffling time samples.
+
+    Returns:
+        Modeled cumulative-integration DataArray.
+
+    """
+    # shuffle time samples
+    np.random.seed(fit_seed)
+    index = np.random.permutation(np.arange(da.sizes["time"]))
+    da = da.isel(time=index)
+    sigma = sigma.isel(time=index)
+
+    # calculate cumulative information
+    weight = sigma**-2
+    signal = (da * weight).cumsum("time") / weight.cumsum("time")
+    noise = weight.cumsum("time") ** -0.5
+    exposure = weight.cumsum("time") ** 2 / (weight**2 / da.exposure).cumsum("time")
+
+    return signal.assign_coords(
+        exposure=exposure.assign_attrs(long_name="Effective exposure time"),
+        noise=noise.assign_attrs(long_name="Expected noise level"),
+    ).assign_attrs(
+        long_name=r"$T_{\mathrm{A}}^{\ast}$",
+        units=da.units,
     )
 
 
@@ -103,7 +154,7 @@ def fit_lowrank(
     return xr.zeros_like(da) + model.inverse_transform(model.transform(da))
 
 
-def fit_poly(
+def fit_polynomial(
     da: xr.DataArray,
     /,
     *,
@@ -135,7 +186,7 @@ def fit_poly(
 
     if groups:
         return da.groupby(groups).apply(
-            fit_poly,
+            fit_polynomial,
             fit_degree=fit_degree,
             fit_per_array=False,
             fit_per_observation=False,

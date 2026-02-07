@@ -1,8 +1,10 @@
 __all__ = ["otf", "psw"]
 
 # standard library
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
+from contextlib import contextmanager
 from itertools import product
+from logging import DEBUG, getLogger
 from os import PathLike
 from pathlib import Path
 from warnings import catch_warnings, simplefilter
@@ -14,12 +16,35 @@ import xarray as xr
 from tqdm import tqdm
 from matplotlib.backends.backend_pdf import PdfPages
 from matplotlib.figure import Figure
-from .models import fit_lowrank, fit_poly, fit_sky, fit_sparse
+from .models import (
+    fit_background,
+    fit_integration,
+    fit_lowrank,
+    fit_polynomial,
+    fit_sparse,
+)
 from .io import Array, read
-from ..stats import mean
+from .. import __version__ as demist_version
 
 # type hints
 Range = tuple[float | None, float | None]
+
+# constants
+LOGGER = getLogger(__name__)
+
+
+@contextmanager
+def set_logger(debug: bool, /) -> Iterator[None]:
+    """Temporarily set the level of the module logger."""
+    level = LOGGER.level
+
+    if debug:
+        LOGGER.setLevel(DEBUG)
+
+    try:
+        yield
+    finally:
+        LOGGER.setLevel(level)
 
 
 def otf(
@@ -42,13 +67,14 @@ def otf(
     sparse_per_observation: bool = False,
     sparse_prefilter: int = 3,
     sparse_threshold: float = 3.0,
-    # options for displaying
-    progress: bool = True,
     # options for saving the quick-look results
     figsize: tuple[float, float] = (10, 5),
     simple: bool = True,
     xlim: Range = (None, None),
     ylim: Range = (None, None),
+    # options for displaying
+    debug: bool = False,
+    progress: bool = True,
 ) -> Path:
     """Quick-look at a DE:MIST on-the-fly (OTF) mapping observation.
 
@@ -69,17 +95,22 @@ def otf(
         sparse_per_observation: Whether to fit sparse model per observation.
         sparse_prefilter: Size of median filter for sparse model fitting.
         sparse_threshold: Absolute S/N threshold for sparse model fitting.
-        progress: Whether to display progress bar.
         figsize: Size of the saved quick-look results.
         simple: Whether not to save miscellaneous information.
         xlim: X-axis limits for the saved quick-look results.
         ylim: Y-axis limits for the saved quick-look results.
+        debug: Whether to display debug information.
+        progress: Whether to display progress bar.
 
     Returns:
         Absolute path to the saved quick-look results.
         If multiple logs are given, the last log's name will be used for saving.
 
     """
+    with set_logger(debug):
+        for key, val in (params := locals().copy()).items():
+            LOGGER.debug(f"{key}: {val!r}")
+
     raise NotImplementedError("This command is not yet implemented.")
 
 
@@ -103,13 +134,14 @@ def psw(
     sparse_per_observation: bool = False,
     sparse_prefilter: int = 3,
     sparse_threshold: float = 3.0,
-    # options for displaying
-    progress: bool = True,
     # options for saving the quick-look results
     figsize: tuple[float, float] = (10, 5),
     simple: bool = True,
     xlim: Range = (None, None),
     ylim: Range = (None, None),
+    # options for displaying
+    debug: bool = False,
+    progress: bool = True,
 ) -> Path:
     """Quick-look at a DE:MIST position-switching (PSW) observation.
 
@@ -130,25 +162,30 @@ def psw(
         sparse_per_observation: Whether to fit sparse model per observation.
         sparse_prefilter: Size of median filter for sparse model fitting.
         sparse_threshold: Absolute S/N threshold for sparse model fitting.
-        progress: Whether to display progress bar.
         figsize: Size of the saved quick-look results.
         simple: Whether not to save miscellaneous information.
         xlim: X-axis limits for the saved quick-look results.
         ylim: Y-axis limits for the saved quick-look results.
+        debug: Whether to display debug information.
+        progress: Whether to display progress bar.
 
     Returns:
         Absolute path to the saved quick-look results.
         If multiple logs are given, the last log's name will be used for saving.
 
     """
-    # create concatenated DataArray ready for analysis
-    Ps: list[xr.DataArray] = []
+    with set_logger(debug):
+        for key, val in (params := locals().copy()).items():
+            LOGGER.debug(f"{key}: {val!r}")
 
+    # Read SAM45 logs and arrays
     with tqdm(
         desc="Reading SAM45 logs/arrays",
         disable=not progress,
         total=len(logs) * len(arrays),
     ) as bar:
+        Ps: list[xr.DataArray] = []
+
         for log, array in product(logs, arrays):
             P = read(
                 log,
@@ -163,20 +200,10 @@ def psw(
             P.state[is_on] = "OFF"
             P.state[is_off] = "ON"
 
-            # assign calibrator (R) as a coordinate
-            calibrator = (
-                P.sel(time=P.state == "R")
-                .groupby("scan")
-                .apply(mean, dim="time")
-                .swap_dims({"scan": "time"})
-                .interp_like(P, kwargs={"fill_value": "extrapolate"})
-                .reset_coords(drop=True)
-            )
-            P = P.assign_coords(calibrator=calibrator)
-            Ps.append(P.sel(time=P.state.isin(["ON", "OFF"])))
+            Ps.append(P)
             bar.update(1)
 
-    P = xr.concat(Ps, dim="time").sortby("time")
+        P = xr.concat(Ps, dim="time").sortby("time")
 
     # run PolyFit (conventional) analysis
     with tqdm(
@@ -184,9 +211,12 @@ def psw(
         disable=not progress,
         total=1,
     ) as bar:
-        P_sky = fit_sky(P)
-        T: xr.DataArray = P.temperature * (P - P_sky) / (P.calibrator - P_sky)
-        T_poly = fit_poly(
+        P_cal = fit_background(P, "R").sel(time=P.state.isin(["ON", "OFF"]))
+        P_sky = fit_background(P, "OFF").sel(time=P.state.isin(["ON", "OFF"]))
+        P = P.sel(time=P.state.isin(["ON", "OFF"]))
+
+        T: xr.DataArray = P.temperature * (P - P_sky) / (P_cal - P_sky)
+        T_poly = fit_polynomial(
             T,
             fit_degree=polyfit_degree,
             fit_ranges=polyfit_ranges,
@@ -201,7 +231,7 @@ def psw(
         disable=not progress,
         total=demist_iterations,
     ) as bar:
-        X: xr.DataArray = np.log(-(P - P.calibrator) / P.temperature)
+        X: xr.DataArray = np.log(-(P - P_cal) / P.temperature)
         X_sparse = xr.zeros_like(X)
 
         for n in range(demist_iterations):
@@ -232,7 +262,7 @@ def psw(
             else:
                 bar.update(1)
 
-    # calculate integrate spectra
+    # calculate final spectra
     with tqdm(
         desc="Calculating final spectra",
         disable=not progress,
@@ -242,54 +272,50 @@ def psw(
         T_polyfit = T_polyfit.assign_attrs(long_name=r"$T_{\mathrm{A}}^{\ast}$")
         T_demist: xr.DataArray = P.temperature * (1 - np.exp(X - X_lowrank))
         T_demist = T_demist.assign_attrs(long_name=r"$T_{\mathrm{A}}^{\ast}$")
-        T_sys: xr.DataArray = P.temperature / (P.calibrator / P_sky - 1)
-        T_sys = T_sys.assign_attrs(long_name=r"$T_{\mathrm{sys}}$")
 
-        spec_polyfit = to_spectrum(
-            T_polyfit,
-            T_sys,
-            alpha=np.sqrt(2),
-            cumulative=False,
-            shuffle=False,
+        T_sys: xr.DataArray = P.temperature / (P_cal / P_sky - 1)
+        T_sys = T_sys.assign_attrs(long_name=r"$T_{\mathrm{sys}}$")
+        T_sigma: xr.DataArray = T_sys * (T.exposure * T.width * 1e9) ** -0.5
+        T_sigma = T_sigma.assign_attrs(long_name="Expected noise level")
+
+        S_polyfit = fit_integration(
+            T_polyfit.sel(time=T_polyfit.state == "ON"),
+            T_sigma.sel(time=T_sigma.state == "ON") * np.sqrt(2),
         )
-        spec_demist = to_spectrum(
-            T_demist,
-            T_sys,
-            alpha=1.0,
-            cumulative=False,
-            shuffle=False,
-        )
-        cumspec_polyfit = to_spectrum(
-            T_polyfit,
-            T_sys,
-            alpha=np.sqrt(2),
-            cumulative=True,
-            shuffle=True,
-        )
-        cumspec_demist = to_spectrum(
-            T_demist,
-            T_sys,
-            alpha=1.0,
-            cumulative=True,
-            shuffle=True,
+        S_demist = fit_integration(
+            T_demist.sel(time=T_demist.state == "ON"),
+            T_sigma.sel(time=T_sigma.state == "ON"),
         )
         bar.update(1)
 
-    # plot and save quick-look results
+    # plot and save results
     with (
         tqdm(
             desc="Plotting/saving results",
             disable=not progress,
             total=1 if simple else 2,
         ) as bar,
-        PdfPages(name := Path(log).name + f".qlook.psw.pdf") as pdf,
+        PdfPages(name := Path(log).name + f".{'+'.join(arrays)}.qlook.psw.pdf") as pdf,
     ):
+        keywords = [
+            f"{key}={value}".replace(" ", "")
+            for key, value in {
+                "demist_version": demist_version,
+                "demist_function": "demist.nro45m.qlook.psw",
+                **params,
+            }.items()
+        ]
+
+        pdfinfo = pdf.infodict()
+        pdfinfo["Title"] = "DE:MIST Quick-Look Results (NRO 45m PSW)"
+        pdfinfo["Keywords"] = ", ".join(keywords)
+
         pdf.savefig(
             plot_integrated_info(
                 figsize=figsize,
                 horizontal=True,
-                spec_demist=spec_demist,
-                spec_polyfit=spec_polyfit,
+                S_demist=S_demist,
+                S_polyfit=S_polyfit,
                 xlim=xlim,
                 ylim=ylim,
             )
@@ -298,8 +324,8 @@ def psw(
             plot_integrated_info(
                 figsize=figsize,
                 horizontal=False,
-                spec_demist=spec_demist,
-                spec_polyfit=spec_polyfit,
+                S_demist=S_demist,
+                S_polyfit=S_polyfit,
                 xlim=xlim,
                 ylim=ylim,
             )
@@ -311,8 +337,8 @@ def psw(
 
         pdf.savefig(
             plot_cumulative_info(
-                cumspec_demist=cumspec_demist,
-                cumspec_polyfit=cumspec_polyfit,
+                S_demist=S_demist,
+                S_polyfit=S_polyfit,
                 figsize=figsize,
             )
         )
@@ -398,23 +424,23 @@ def plot_chanwise_info(
 
 def plot_cumulative_info(
     *,
-    cumspec_demist: xr.DataArray,
-    cumspec_polyfit: xr.DataArray,
+    S_demist: xr.DataArray,
+    S_polyfit: xr.DataArray,
     figsize: tuple[float, float],
 ) -> Figure:
     """Plot cumulative information (cumulative noise level and maximum S/N)."""
     fig, axes = plt.subplots(1, 2, figsize=figsize)
-    fit_ranges = cumspec_polyfit.fit_ranges
+    fit_ranges = S_polyfit.fit_ranges
 
     ax = axes[0]
     ax.plot(
-        cumspec_polyfit.sel(chan=fit_ranges).exposure.mean("chan"),
-        cumspec_polyfit.sel(chan=fit_ranges).std("chan"),
+        S_polyfit.sel(chan=fit_ranges).exposure.mean("chan"),
+        S_polyfit.sel(chan=fit_ranges).std("chan"),
         label="PolyFit",
     )
     ax.plot(
-        cumspec_demist.sel(chan=fit_ranges).exposure.mean("chan"),
-        cumspec_demist.sel(chan=fit_ranges).std("chan"),
+        S_demist.sel(chan=fit_ranges).exposure.mean("chan"),
+        S_demist.sel(chan=fit_ranges).std("chan"),
         label="DE:MIST",
     )
     ax.set_title("Cumulative noise level")
@@ -423,13 +449,13 @@ def plot_cumulative_info(
 
     ax = axes[1]
     ax.plot(
-        cumspec_polyfit.sel(chan=fit_ranges).exposure.mean("chan"),
-        cumspec_polyfit.max("chan") / cumspec_polyfit.sel(chan=fit_ranges).std("chan"),
+        S_polyfit.sel(chan=fit_ranges).exposure.mean("chan"),
+        S_polyfit.max("chan") / S_polyfit.sel(chan=fit_ranges).std("chan"),
         label="PolyFit",
     )
     ax.plot(
-        cumspec_demist.sel(chan=fit_ranges).exposure.mean("chan"),
-        cumspec_demist.max("chan") / cumspec_demist.sel(chan=fit_ranges).std("chan"),
+        S_demist.sel(chan=fit_ranges).exposure.mean("chan"),
+        S_demist.max("chan") / S_demist.sel(chan=fit_ranges).std("chan"),
         label="DE:MIST",
     )
     ax.set_title("Maximum signal-to-noise ratio")
@@ -452,8 +478,8 @@ def plot_integrated_info(
     *,
     figsize: tuple[float, float],
     horizontal: bool = True,
-    spec_demist: xr.DataArray,
-    spec_polyfit: xr.DataArray,
+    S_demist: xr.DataArray,
+    S_polyfit: xr.DataArray,
     xlim: Range = (None, None),
     ylim: Range = (None, None),
 ) -> Figure:
@@ -463,17 +489,28 @@ def plot_integrated_info(
     else:
         fig, axes = plt.subplots(2, 1, figsize=figsize, sharex=True, sharey=True)
 
-    fit_ranges = spec_polyfit.fit_ranges
-    a_polyfit = spec_polyfit.sel(chan=fit_ranges).std() / spec_demist.noise
-    a_demist = spec_demist.sel(chan=fit_ranges).std() / spec_demist.noise
+    alpha_polyfit = (
+        # fmt: off
+        S_polyfit.isel(time=-1).sel(chan=S_polyfit.fit_ranges).std()
+        / S_demist.noise.isel(time=-1)
+        # fmt: on
+    )
+    alpha_demist = (
+        # fmt: off
+        S_demist.isel(time=-1).sel(chan=S_polyfit.fit_ranges).std()
+        / S_demist.noise.isel(time=-1)
+        # fmt: on
+    )
+    spec_polyfit = S_polyfit.isel(time=-1).swap_dims(chan="frequency")
+    spec_demist = S_demist.isel(time=-1).swap_dims(chan="frequency")
 
     ax = axes[0]
-    spec_polyfit.swap_dims(chan="frequency").plot.step(
+    spec_polyfit.plot.step(
         ax=ax,
         label=(
             # fmt: off
             "PolyFit "
-            rf"($\alpha$ = {a_polyfit.mean():.2f} $\pm$ {a_polyfit.std():.2f})",
+            rf"($\alpha$ = {alpha_polyfit.mean():.2f} $\pm$ {alpha_polyfit.std():.2f})",
             # fmt: on
         ),
     )
@@ -486,14 +523,15 @@ def plot_integrated_info(
         ec="none",
         label=r"Expected noise level ($\alpha = \sqrt{2}$)",
     )
+    ax.set_title("Integrated spectrum (PolyFit)")
 
     ax = axes[1]
-    spec_demist.swap_dims(chan="frequency").plot.step(
+    spec_demist.plot.step(
         ax=ax,
         label=(
             # fmt: off
             "DE:MIST "
-            rf"($\alpha$ = {a_demist.mean():.2f} $\pm$ {a_demist.std():.2f})"
+            rf"($\alpha$ = {alpha_demist.mean():.2f} $\pm$ {alpha_demist.std():.2f})"
             # fmt: on
         ),
     )
@@ -506,6 +544,7 @@ def plot_integrated_info(
         ec="none",
         label=r"Expected noise level ($\alpha = 1$)",
     )
+    ax.set_title("Integrated spectrum (DE:MIST)")
 
     for ax in axes:
         ax.margins(x=0.0)
@@ -577,57 +616,3 @@ def plot_timewise_info(
         figs.append(fig)
 
     return figs
-
-
-def to_spectrum(
-    T: xr.DataArray,
-    T_sys: xr.DataArray,
-    /,
-    *,
-    alpha: float = 1.0,
-    cumulative: bool = False,
-    shuffle: bool = True,
-) -> xr.DataArray:
-    """Create integrated spectrum of calibrated temperature.
-
-    Args:
-        T: DataArray of calibrated antenna temperature.
-        T_sys: DataArray of system noise temperature.
-        alpha: Scaling factor for noise level.
-        cumulative: Whether to calculate cumulative spectrum.
-        shuffle: Whether to shuffle time samples before integration.
-
-    Returns:
-        Integrated spectrum with expected noise level and effective exposure time.
-
-    """
-    T = T.sel(time=T.state == "ON")
-    T_sys = T_sys.sel(time=T_sys.state == "ON")
-
-    if shuffle:
-        np.random.seed(0)
-        index = np.random.permutation(np.arange(T.sizes["time"]))
-        T = T.isel(time=index)
-        T_sys = T_sys.isel(time=index)
-
-    # calculate expected noise level per time sample
-    sigma = alpha * T_sys * (T.exposure * T.width * 1e9) ** -0.5
-    weight = sigma**-2
-
-    # calculate expected noise level of integrated spectrum
-    if cumulative:
-        exposure = weight.cumsum("time") ** 2 / (weight**2 / T.exposure).cumsum("time")
-        signal = (T * weight).cumsum("time") / weight.cumsum("time")
-        noise = (sigma**-2).cumsum("time") ** -0.5
-    else:
-        exposure = weight.sum("time") ** 2 / (weight**2 / T.exposure).sum("time")
-        signal = (T * weight).sum("time") / weight.sum("time")
-        noise = (sigma**-2).sum("time") ** -0.5
-
-    return signal.assign_coords(
-        exposure=exposure.assign_attrs(long_name="Effective exposure time"),
-        noise=noise.assign_attrs(long_name="Expected noise level", units=T.units),
-    ).assign_attrs(
-        long_name=r"$T_{\mathrm{A}}^{\ast}$",
-        units=T.units,
-    )
