@@ -1,9 +1,16 @@
-__all__ = ["fit_background", "fit_lowrank", "fit_polynomial", "fit_sparse"]
+__all__ = [
+    "fit_background",
+    "fit_integration",
+    "fit_lowrank",
+    "fit_polynomial",
+    "fit_sparse",
+]
 
 # standard library
 from collections.abc import Sequence
 
 # dependencies
+import numpy as np
 import xarray as xr
 from ndtools import Any, Range as NDRange
 from scipy.ndimage import median_filter
@@ -63,6 +70,44 @@ def fit_background(
         return model.interp_like(da, kwargs={"fill_value": "extrapolate"})
     else:
         return model.reindex_like(da, method="nearest")
+
+
+def fit_integration(
+    da: xr.DataArray,
+    sigma: xr.DataArray,
+    /,
+    fit_seed: int = 0,
+) -> xr.DataArray:
+    """Fit cumulative-integration model to a DataArray.
+
+    Args:
+        da: DataArray to fit.
+        sigma: DataArray of noise level.
+        fit_seed: Random seed for shuffling time samples.
+
+    Returns:
+        Modeled cumulative-integration DataArray.
+
+    """
+    # shuffle time samples
+    np.random.seed(fit_seed)
+    index = np.random.permutation(np.arange(da.sizes["time"]))
+    da = da.isel(time=index)
+    sigma = sigma.isel(time=index)
+
+    # calculate cumulative information
+    weight = sigma**-2
+    signal = (da * weight).cumsum("time") / weight.cumsum("time")
+    noise = weight.cumsum("time") ** -0.5
+    exposure = weight.cumsum("time") ** 2 / (weight**2 / da.exposure).cumsum("time")
+
+    return signal.assign_coords(
+        exposure=exposure.assign_attrs(long_name="Effective exposure time"),
+        noise=noise.assign_attrs(long_name="Expected noise level"),
+    ).assign_attrs(
+        long_name=r"$T_{\mathrm{A}}^{\ast}$",
+        units=da.units,
+    )
 
 
 def fit_lowrank(
