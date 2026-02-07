@@ -1,5 +1,5 @@
 __all__ = ["cli", "nro45m", "stats"]
-__version__ = "0.2.0"
+__version__ = "0.3.0"
 
 # dependencies
 from fire import Fire

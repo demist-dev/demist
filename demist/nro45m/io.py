@@ -1,4 +1,4 @@
-__all__ = ["DIMS", "Array", "read"]
+__all__ = ["Array", "read"]
 
 # standard library
 from os import PathLike
@@ -23,7 +23,6 @@ Array = Literal[
 
 # constants
 AMBIENT_TEMPERATURE = 273.0  # K
-DIMS = "time", "chan"
 DATETIME_FORMAT = "%Y%m%d%H%M%S.%f"
 TIMEZONE_JST = pd.Timedelta(9, "h")
 
@@ -81,60 +80,60 @@ def read(
     # create DataArray
     dataarray = xr.DataArray(
         data=data,
-        dims=DIMS,
+        dims=("time", "chan"),
         coords={
             "array": (
-                DIMS[0],
+                "time",
                 np.full(len(time), array).astype(np.str_),
                 {"long_name": "Array name"},
             ),
             "beam": (
-                DIMS[0],
+                "time",
                 np.full(len(time), obs["imlt_no"][obs_index].astype(np.int64)),
                 {"long_name": "Beam number"},
             ),
             "chan": (
-                DIMS[1],
+                "chan",
                 chan,
                 {"long_name": "Channel number"},
             ),
             "exposure": (
-                DIMS[0],
+                "time",
                 np.full(len(time), obs["diptim"]).astype(np.float64),
                 {"long_name": "Exposure time", "units": "s"},
             ),
             "frequency": (
-                DIMS[1],
+                "chan",
                 frequency.astype(np.float64),
                 {"long_name": "Rest frequency", "units": "GHz"},
             ),
             "observation": (
-                DIMS[0],
+                "time",
                 np.full(len(time), obs["clog_id"].astype(np.str_)),
                 {"long_name": "Observation ID"},
             ),
             "scan": (
-                DIMS[0],
+                "time",
                 dat[dat_index]["iline_no"].astype(np.int64),
                 {"long_name": "Scan number"},
             ),
             "state": (
-                DIMS[0],
+                "time",
                 state,
                 {"long_name": "Scan state"},
             ),
             "temperature": (
-                DIMS[0],
+                "time",
                 np.full(len(time), AMBIENT_TEMPERATURE).astype(np.float64),
                 {"long_name": "Ambient temperature", "units": "K"},
             ),
             "time": (
-                DIMS[0],
+                "time",
                 time,
                 {"long_name": "Observed time in UTC"},
             ),
             "width": (
-                DIMS[1],
+                "chan",
                 np.full(len(chan), obs["dbechwid"][obs_index]) * 1e-9,
                 {"long_name": "Channel width", "units": "GHz"},
             ),
@@ -153,8 +152,8 @@ def read(
         .apply(
             mean,
             dim={
-                DIMS[0]: time_binning,
-                DIMS[1]: chan_binning,
+                "time": time_binning,
+                "chan": chan_binning,
             },
         )
     )
@@ -166,6 +165,6 @@ def read(
             scan=dataarray.scan.astype(np.int64),
             width=dataarray.width * chan_binning,
         )
-        .sortby(DIMS[0])
-        .sortby(DIMS[1])
+        .sortby("time")
+        .sortby("chan")
     )
