@@ -71,6 +71,7 @@ def otf(
     sparse_threshold: float = 3.0,
     # options for saving the quick-look results
     figsize: tuple[float, float] = (10, 5),
+    overwrite: bool = False,
     simple: bool = True,
     xlim: Range = (None, None),
     ylim: Range = (None, None),
@@ -100,6 +101,7 @@ def otf(
         sparse_threshold: Absolute S/N threshold for sparse model fitting.
         figsize: Size of the saved quick-look results.
         simple: Whether not to save miscellaneous information.
+        overwrite: Whether to overwrite existing quick-look results.
         xlim: X-axis limits for the saved quick-look results.
         ylim: Y-axis limits for the saved quick-look results.
         debug: Whether to display debug information.
@@ -141,6 +143,7 @@ def psw(
     # options for saving the quick-look results
     figsize: tuple[float, float] = (10, 5),
     simple: bool = True,
+    overwrite: bool = False,
     xlim: Range = (None, None),
     ylim: Range = (None, None),
     # options for displaying
@@ -169,6 +172,7 @@ def psw(
         sparse_threshold: Absolute S/N threshold for sparse model fitting.
         figsize: Size of the saved quick-look results.
         simple: Whether not to save miscellaneous information.
+        overwrite: Whether to overwrite existing quick-look results.
         xlim: X-axis limits for the saved quick-look results.
         ylim: Y-axis limits for the saved quick-look results.
         debug: Whether to display debug information.
@@ -186,9 +190,12 @@ def psw(
     if len(logs) == 0:
         raise ValueError("At least one SAM45 log must be given.")
     if len(logs) == 1:
-        name = f"{Path(logs[0]).name}.{'+'.join(arrays)}.qlook.psw"
+        prefix = f"{Path(logs[0]).name}.{'+'.join(arrays)}.qlook.psw"
     else:
-        name = f"{Path(logs[0]).name}+.{'+'.join(arrays)}.qlook.psw"
+        prefix = f"{Path(logs[0]).name}+.{'+'.join(arrays)}.qlook.psw"
+
+    if (results := Path(f"{prefix}.pdf")).exists() and not overwrite:
+        raise FileExistsError(f"{results} already exists.")
 
     # Read SAM45 logs and arrays
     with tqdm(
@@ -309,7 +316,7 @@ def psw(
             disable=not progress,
             total=1 if simple else 2,
         ) as bar,
-        PdfPages(path := Path(f"{name}.pdf")) as pdf,
+        PdfPages(results) as pdf,
     ):
         keywords = [
             f"{key}={value}".replace(" ", "")
@@ -347,7 +354,7 @@ def psw(
         bar.update(1)
 
         if simple:
-            return path.resolve()
+            return results.resolve()
 
         pdf.savefig(
             plot_cumulative_info(
@@ -373,7 +380,7 @@ def psw(
             )
         )
         bar.update(1)
-        return path.resolve()
+        return results.resolve()
 
 
 def cov(da: xr.DataArray, /) -> xr.DataArray:
