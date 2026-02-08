@@ -107,7 +107,7 @@ def otf(
 
     Returns:
         Absolute path to the saved quick-look results.
-        If multiple logs are given, the last log's name will be used for saving.
+        If multiple logs are given, the first log's name will be used for saving.
 
     """
     with set_logger(debug):
@@ -176,12 +176,19 @@ def psw(
 
     Returns:
         Absolute path to the saved quick-look results.
-        If multiple logs are given, the last log's name will be used for saving.
+        If multiple logs are given, the first log name will be used for saving.
 
     """
     with set_logger(debug):
         for key, val in (params := locals().copy()).items():
             LOGGER.debug(f"{key}: {val!r}")
+
+    if len(logs) == 0:
+        raise ValueError("At least one SAM45 log must be given.")
+    if len(logs) == 1:
+        name = f"{Path(logs[0]).name}.{'+'.join(arrays)}.qlook.psw"
+    else:
+        name = f"{Path(logs[0]).name}+.{'+'.join(arrays)}.qlook.psw"
 
     # Read SAM45 logs and arrays
     with tqdm(
@@ -302,7 +309,7 @@ def psw(
             disable=not progress,
             total=1 if simple else 2,
         ) as bar,
-        PdfPages(name := Path(log).name + f".{'+'.join(arrays)}.qlook.psw.pdf") as pdf,
+        PdfPages(path := Path(f"{name}.pdf")) as pdf,
     ):
         keywords = [
             f"{key}={value}".replace(" ", "")
@@ -340,7 +347,7 @@ def psw(
         bar.update(1)
 
         if simple:
-            return Path(name).resolve()
+            return path.resolve()
 
         pdf.savefig(
             plot_cumulative_info(
@@ -366,7 +373,7 @@ def psw(
             )
         )
         bar.update(1)
-        return Path(name).resolve()
+        return path.resolve()
 
 
 def cov(da: xr.DataArray, /) -> xr.DataArray:
