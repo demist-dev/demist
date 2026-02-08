@@ -13,9 +13,10 @@ from warnings import catch_warnings, simplefilter
 import matplotlib.pyplot as plt
 import numpy as np
 import xarray as xr
-from tqdm import tqdm
 from matplotlib.backends.backend_pdf import PdfPages
 from matplotlib.figure import Figure
+from ndtools import Any, Range as NDRange
+from tqdm import tqdm
 from .models import (
     fit_background,
     fit_integration,
@@ -50,6 +51,7 @@ def set_logger(debug: bool, /) -> Iterator[None]:
 def otf(
     *logs: PathLike[str] | str,
     # options for reading SAM45 logs
+    analysis_ranges: Sequence[Range] = ((None, None),),
     arrays: Sequence[Array] = ("A1",),
     chan_binning: int = 8,
     time_binning: int = 5,
@@ -69,6 +71,7 @@ def otf(
     sparse_threshold: float = 3.0,
     # options for saving the quick-look results
     figsize: tuple[float, float] = (10, 5),
+    overwrite: bool = False,
     simple: bool = True,
     xlim: Range = (None, None),
     ylim: Range = (None, None),
@@ -80,6 +83,7 @@ def otf(
 
     Args:
         *logs: Path(s) to SAM45 log(s).
+        analysis_ranges: Frequency ranges in GHz to use for the whole analysis.
         arrays: Array names to read (A1-A32).
         chan_binning: Number of channels to bin together.
         time_binning: Number of time samples to bin together.
@@ -97,6 +101,7 @@ def otf(
         sparse_threshold: Absolute S/N threshold for sparse model fitting.
         figsize: Size of the saved quick-look results.
         simple: Whether not to save miscellaneous information.
+        overwrite: Whether to overwrite existing quick-look results.
         xlim: X-axis limits for the saved quick-look results.
         ylim: Y-axis limits for the saved quick-look results.
         debug: Whether to display debug information.
@@ -104,7 +109,7 @@ def otf(
 
     Returns:
         Absolute path to the saved quick-look results.
-        If multiple logs are given, the last log's name will be used for saving.
+        If multiple logs are given, the first log's name will be used for saving.
 
     """
     with set_logger(debug):
@@ -117,6 +122,7 @@ def otf(
 def psw(
     *logs: PathLike[str] | str,
     # options for reading SAM45 logs
+    analysis_ranges: Sequence[Range] = ((None, None),),
     arrays: Sequence[Array] = ("A1",),
     chan_binning: int = 8,
     time_binning: int = 5,
@@ -137,6 +143,7 @@ def psw(
     # options for saving the quick-look results
     figsize: tuple[float, float] = (10, 5),
     simple: bool = True,
+    overwrite: bool = False,
     xlim: Range = (None, None),
     ylim: Range = (None, None),
     # options for displaying
@@ -147,6 +154,7 @@ def psw(
 
     Args:
         *logs: Path(s) to SAM45 log(s).
+        analysis_ranges: Frequency ranges in GHz to use for the whole analysis.
         arrays: Array names to read (A1-A32).
         chan_binning: Number of channels to bin together.
         time_binning: Number of time samples to bin together.
@@ -164,6 +172,7 @@ def psw(
         sparse_threshold: Absolute S/N threshold for sparse model fitting.
         figsize: Size of the saved quick-look results.
         simple: Whether not to save miscellaneous information.
+        overwrite: Whether to overwrite existing quick-look results.
         xlim: X-axis limits for the saved quick-look results.
         ylim: Y-axis limits for the saved quick-look results.
         debug: Whether to display debug information.
@@ -171,12 +180,22 @@ def psw(
 
     Returns:
         Absolute path to the saved quick-look results.
-        If multiple logs are given, the last log's name will be used for saving.
+        If multiple logs are given, the first log name will be used for saving.
 
     """
     with set_logger(debug):
         for key, val in (params := locals().copy()).items():
             LOGGER.debug(f"{key}: {val!r}")
+
+    if len(logs) == 0:
+        raise ValueError("At least one SAM45 log must be given.")
+    if len(logs) == 1:
+        prefix = f"{Path(logs[0]).name}.{'+'.join(arrays)}.qlook.psw"
+    else:
+        prefix = f"{Path(logs[0]).name}+.{'+'.join(arrays)}.qlook.psw"
+
+    if (results := Path(f"{prefix}.pdf")).exists() and not overwrite:
+        raise FileExistsError(f"{results} already exists.")
 
     # Read SAM45 logs and arrays
     with tqdm(
@@ -184,6 +203,7 @@ def psw(
         disable=not progress,
         total=len(logs) * len(arrays),
     ) as bar:
+        analysis_ranges = Any(NDRange(*args) for args in analysis_ranges)
         Ps: list[xr.DataArray] = []
 
         for log, array in product(logs, arrays):
@@ -204,6 +224,7 @@ def psw(
             bar.update(1)
 
         P = xr.concat(Ps, dim="time").sortby("time")
+        P = P.sel(chan=P.frequency == analysis_ranges)
 
     # run PolyFit (conventional) analysis
     with tqdm(
@@ -256,7 +277,7 @@ def psw(
                 simplefilter("ignore", category=RuntimeWarning)
                 eps = float(((X_sparse - X_sparse_) / X_sparse_).mean())
 
-            if abs(eps) < demist_threshold:
+            if np.isnan(eps) or abs(eps) < demist_threshold:
                 bar.update(demist_iterations - n)
                 break
             else:
@@ -295,7 +316,7 @@ def psw(
             disable=not progress,
             total=1 if simple else 2,
         ) as bar,
-        PdfPages(name := Path(log).name + f".{'+'.join(arrays)}.qlook.psw.pdf") as pdf,
+        PdfPages(results) as pdf,
     ):
         keywords = [
             f"{key}={value}".replace(" ", "")
@@ -333,7 +354,7 @@ def psw(
         bar.update(1)
 
         if simple:
-            return Path(name).resolve()
+            return results.resolve()
 
         pdf.savefig(
             plot_cumulative_info(
@@ -359,7 +380,7 @@ def psw(
             )
         )
         bar.update(1)
-        return Path(name).resolve()
+        return results.resolve()
 
 
 def cov(da: xr.DataArray, /) -> xr.DataArray:
