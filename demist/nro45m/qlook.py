@@ -13,9 +13,10 @@ from warnings import catch_warnings, simplefilter
 import matplotlib.pyplot as plt
 import numpy as np
 import xarray as xr
-from tqdm import tqdm
 from matplotlib.backends.backend_pdf import PdfPages
 from matplotlib.figure import Figure
+from ndtools import Any, Range as NDRange
+from tqdm import tqdm
 from .models import (
     fit_background,
     fit_integration,
@@ -50,6 +51,7 @@ def set_logger(debug: bool, /) -> Iterator[None]:
 def otf(
     *logs: PathLike[str] | str,
     # options for reading SAM45 logs
+    analysis_ranges: Sequence[Range] = ((None, None),),
     arrays: Sequence[Array] = ("A1",),
     chan_binning: int = 8,
     time_binning: int = 5,
@@ -80,6 +82,7 @@ def otf(
 
     Args:
         *logs: Path(s) to SAM45 log(s).
+        analysis_ranges: Frequency ranges in GHz to use for the whole analysis.
         arrays: Array names to read (A1-A32).
         chan_binning: Number of channels to bin together.
         time_binning: Number of time samples to bin together.
@@ -117,6 +120,7 @@ def otf(
 def psw(
     *logs: PathLike[str] | str,
     # options for reading SAM45 logs
+    analysis_ranges: Sequence[Range] = ((None, None),),
     arrays: Sequence[Array] = ("A1",),
     chan_binning: int = 8,
     time_binning: int = 5,
@@ -147,6 +151,7 @@ def psw(
 
     Args:
         *logs: Path(s) to SAM45 log(s).
+        analysis_ranges: Frequency ranges in GHz to use for the whole analysis.
         arrays: Array names to read (A1-A32).
         chan_binning: Number of channels to bin together.
         time_binning: Number of time samples to bin together.
@@ -184,6 +189,7 @@ def psw(
         disable=not progress,
         total=len(logs) * len(arrays),
     ) as bar:
+        analysis_ranges = Any(NDRange(*args) for args in analysis_ranges)
         Ps: list[xr.DataArray] = []
 
         for log, array in product(logs, arrays):
@@ -204,6 +210,7 @@ def psw(
             bar.update(1)
 
         P = xr.concat(Ps, dim="time").sortby("time")
+        P = P.sel(chan=P.frequency == analysis_ranges)
 
     # run PolyFit (conventional) analysis
     with tqdm(
