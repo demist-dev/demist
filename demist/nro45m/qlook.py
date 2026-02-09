@@ -277,7 +277,7 @@ def psw(
                 simplefilter("ignore", category=RuntimeWarning)
                 eps = float(((X_sparse - X_sparse_) / X_sparse_).mean())
 
-            if np.isnan(eps) or abs(eps) < demist_threshold:
+            if abs(eps) < demist_threshold:
                 bar.update(demist_iterations - n)
                 break
             else:
