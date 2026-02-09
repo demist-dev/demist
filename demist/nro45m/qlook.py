@@ -72,9 +72,9 @@ def otf(
     sparse_prefilter: int = 3,
     sparse_threshold: float = 3.0,
     # options for saving the quick-look results
+    detailed: bool = False,
     figsize: tuple[float, float] = (10, 5),
     overwrite: bool = False,
-    detailed: bool = False,
     xlim: Range = (None, None),
     ylim: Range = (None, None),
     # options for displaying
@@ -101,8 +101,8 @@ def otf(
         sparse_per_observation: Whether to fit sparse model per observation.
         sparse_prefilter: Size of median filter for sparse model fitting.
         sparse_threshold: Absolute S/N threshold for sparse model fitting.
-        figsize: Size of the saved quick-look results.
         detailed: Whether to save detailed information.
+        figsize: Size of the saved quick-look results.
         overwrite: Whether to overwrite existing quick-look results.
         xlim: X-axis limits for the saved quick-look results.
         ylim: Y-axis limits for the saved quick-look results.
@@ -143,8 +143,8 @@ def psw(
     sparse_prefilter: int = 3,
     sparse_threshold: float = 3.0,
     # options for saving the quick-look results
-    figsize: tuple[float, float] = (10, 5),
     detailed: bool = False,
+    figsize: tuple[float, float] = (10, 5),
     overwrite: bool = False,
     xlim: Range = (None, None),
     ylim: Range = (None, None),
@@ -174,8 +174,8 @@ def psw(
         sparse_per_observation: Whether to fit sparse model per observation.
         sparse_prefilter: Size of median filter for sparse model fitting.
         sparse_threshold: Absolute S/N threshold for sparse model fitting.
-        figsize: Size of the saved quick-look results.
         detailed: Whether to save detailed information.
+        figsize: Size of the saved quick-look results.
         overwrite: Whether to overwrite existing quick-look results.
         xlim: X-axis limits for the saved quick-look results.
         ylim: Y-axis limits for the saved quick-look results.
