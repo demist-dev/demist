@@ -34,6 +34,7 @@ def read(
     *,
     chan_binning: int = 1,
     time_binning: int = 1,
+    chan_flip: bool = False,
 ) -> xr.DataArray:
     """Read a SAM45 log to create a DataArray of an array.
 
@@ -42,6 +43,9 @@ def read(
         array: Array name to read (A1-A32).
         chan_binning: Number of channels to bin together.
         time_binning: Number of time samples to bin together.
+        chan_flip: Whether to flip the channel order.
+            Note that this is a temporary workaround for reading SAM45 logs
+            with flipped channel order and will be removed in future versions.
 
     Returns:
         DataArray of the array.
@@ -76,6 +80,9 @@ def read(
     att = np.where(state == "R", obs["iary_ifatt"][obs_index], 0)  # dB
     data = dat[dat_index]["fary_data"].astype(np.float64)
     data = (data - data[state == "ZERO"]) * (10 ** (att / 10))[:, np.newaxis]
+
+    if chan_flip:
+        data = data[:, ::-1]
 
     # create DataArray
     dataarray = xr.DataArray(

@@ -151,6 +151,8 @@ def psw(
     # options for displaying
     debug: bool = False,
     progress: bool = True,
+    # options for workarounds
+    chan_flip: bool = False,
 ) -> Path:
     """Quick-look at a DE:MIST position-switching (PSW) observation.
 
@@ -179,7 +181,9 @@ def psw(
         ylim: Y-axis limits for the saved quick-look results.
         debug: Whether to display debug information.
         progress: Whether to display progress bar.
-
+        chan_flip: Whether to flip the channel order.
+            Note that this is a temporary workaround for reading SAM45 logs
+            with flipped channel order and will be removed in future versions.
     Returns:
         Absolute path to the saved quick-look results.
         If multiple logs are given, the first log name will be used for saving.
@@ -214,6 +218,7 @@ def psw(
                 array,
                 time_binning=time_binning,
                 chan_binning=chan_binning,
+                chan_flip=chan_flip,
             )
 
             # swap ON/OFF for non-central beams
@@ -316,7 +321,7 @@ def psw(
         tqdm(
             desc="Plotting/saving results",
             disable=not progress,
-            total=1 if simple else 2,
+            total=2 if detailed else 1,
         ) as bar,
         PdfPages(results) as pdf,
     ):
