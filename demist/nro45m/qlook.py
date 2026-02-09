@@ -74,6 +74,8 @@ def otf(
     # options for saving the quick-look results
     detailed: bool = False,
     figsize: tuple[float, float] = (10, 5),
+    label: str | None = None,
+    note: str | None = None,
     overwrite: bool = False,
     xlim: Range = (None, None),
     ylim: Range = (None, None),
@@ -103,6 +105,8 @@ def otf(
         sparse_threshold: Absolute S/N threshold for sparse model fitting.
         detailed: Whether to save detailed information.
         figsize: Size of the saved quick-look results.
+        label: Additional label for the file name of the saved quick-look results.
+        note: Additional note to add to the saved quick-look results.
         overwrite: Whether to overwrite existing quick-look results.
         xlim: X-axis limits for the saved quick-look results.
         ylim: Y-axis limits for the saved quick-look results.
@@ -145,6 +149,8 @@ def psw(
     # options for saving the quick-look results
     detailed: bool = False,
     figsize: tuple[float, float] = (10, 5),
+    label: str | None = None,
+    note: str | None = None,
     overwrite: bool = False,
     xlim: Range = (None, None),
     ylim: Range = (None, None),
@@ -176,6 +182,8 @@ def psw(
         sparse_threshold: Absolute S/N threshold for sparse model fitting.
         detailed: Whether to save detailed information.
         figsize: Size of the saved quick-look results.
+        label: Additional label for the file name of the saved quick-look results.
+        note: Additional note to add to the saved quick-look results.
         overwrite: Whether to overwrite existing quick-look results.
         xlim: X-axis limits for the saved quick-look results.
         ylim: Y-axis limits for the saved quick-look results.
@@ -196,11 +204,14 @@ def psw(
     if len(logs) == 0:
         raise ValueError("At least one SAM45 log must be given.")
     if len(logs) == 1:
-        prefix = f"{Path(logs[0]).name}.{'+'.join(arrays)}.qlook.psw"
+        name = f"{Path(logs[0]).name}.{'+'.join(arrays)}.qlook.psw"
     else:
-        prefix = f"{Path(logs[0]).name}+.{'+'.join(arrays)}.qlook.psw"
+        name = f"{Path(logs[0]).name}+.{'+'.join(arrays)}.qlook.psw"
 
-    if (results := Path(f"{prefix}.pdf")).exists() and not overwrite:
+    if label is not None:
+        name = f"{name}.{label}"
+
+    if (results := Path(f"{name}.pdf")).exists() and not overwrite:
         raise FileExistsError(f"{results} already exists.")
 
     # Read SAM45 logs and arrays
