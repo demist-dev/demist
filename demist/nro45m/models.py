@@ -118,6 +118,7 @@ def fit_lowrank(
     fit_off_only: bool = False,
     fit_per_array: bool = True,
     fit_per_observation: bool = True,
+    fit_seed: int = 0,
 ) -> xr.DataArray:
     """Fit low-rank model to a DataArray.
 
@@ -127,7 +128,7 @@ def fit_lowrank(
         fit_off_only: Whether to use only OFF samples for fitting.
         fit_per_array: Whether to fit per array.
         fit_per_observation: Whether to fit per observation.
-
+        fit_seed: Random seed for truncated SVD.
     Returns:
         Modeled low-rank DataArray.
 
@@ -149,7 +150,7 @@ def fit_lowrank(
             fit_per_observation=False,
         )
 
-    model = TruncatedSVD(fit_components)
+    model = TruncatedSVD(fit_components, random_state=fit_seed)
     model.fit(da.sel(time=da.state == "OFF") if fit_off_only else da)
     return xr.zeros_like(da) + model.inverse_transform(model.transform(da))
 
@@ -247,4 +248,5 @@ def fit_sparse(
     signal.data = median_filter(signal.data, fit_prefilter)
     noise = SIGMA_OVER_MAD * mad(signal)
     signal[abs(signal / noise) < fit_threshold] = 0
+    signal = signal.assign_coords(signal_ranges=signal != 0)
     return (da.state == "ON") * signal

@@ -31,6 +31,8 @@ from .. import __version__ as demist_version
 Range = tuple[float | None, float | None]
 
 # constants
+COLOR_DEMIST = "#1e50a2"  # https://www.colordic.org/colorsample/2069
+COLOR_POLYFIT = "#a22041"  # https://www.colordic.org/colorsample/2005
 LOGGER = getLogger(__name__)
 
 
@@ -70,9 +72,11 @@ def otf(
     sparse_prefilter: int = 3,
     sparse_threshold: float = 3.0,
     # options for saving the quick-look results
+    detailed: bool = False,
     figsize: tuple[float, float] = (10, 5),
+    label: str | None = None,
+    note: str | None = None,
     overwrite: bool = False,
-    simple: bool = True,
     xlim: Range = (None, None),
     ylim: Range = (None, None),
     # options for displaying
@@ -99,8 +103,10 @@ def otf(
         sparse_per_observation: Whether to fit sparse model per observation.
         sparse_prefilter: Size of median filter for sparse model fitting.
         sparse_threshold: Absolute S/N threshold for sparse model fitting.
+        detailed: Whether to save detailed information.
         figsize: Size of the saved quick-look results.
-        simple: Whether not to save miscellaneous information.
+        label: Additional label for the file name of the saved quick-look results.
+        note: Additional note to add to the saved quick-look results.
         overwrite: Whether to overwrite existing quick-look results.
         xlim: X-axis limits for the saved quick-look results.
         ylim: Y-axis limits for the saved quick-look results.
@@ -141,14 +147,18 @@ def psw(
     sparse_prefilter: int = 3,
     sparse_threshold: float = 3.0,
     # options for saving the quick-look results
+    detailed: bool = False,
     figsize: tuple[float, float] = (10, 5),
-    simple: bool = True,
+    label: str | None = None,
+    note: str | None = None,
     overwrite: bool = False,
     xlim: Range = (None, None),
     ylim: Range = (None, None),
     # options for displaying
     debug: bool = False,
     progress: bool = True,
+    # options for workarounds
+    chan_flip: bool = False,
 ) -> Path:
     """Quick-look at a DE:MIST position-switching (PSW) observation.
 
@@ -170,14 +180,18 @@ def psw(
         sparse_per_observation: Whether to fit sparse model per observation.
         sparse_prefilter: Size of median filter for sparse model fitting.
         sparse_threshold: Absolute S/N threshold for sparse model fitting.
+        detailed: Whether to save detailed information.
         figsize: Size of the saved quick-look results.
-        simple: Whether not to save miscellaneous information.
+        label: Additional label for the file name of the saved quick-look results.
+        note: Additional note to add to the saved quick-look results.
         overwrite: Whether to overwrite existing quick-look results.
         xlim: X-axis limits for the saved quick-look results.
         ylim: Y-axis limits for the saved quick-look results.
         debug: Whether to display debug information.
         progress: Whether to display progress bar.
-
+        chan_flip: Whether to flip the channel order.
+            Note that this is a temporary workaround for reading SAM45 logs
+            with flipped channel order and will be removed in future versions.
     Returns:
         Absolute path to the saved quick-look results.
         If multiple logs are given, the first log name will be used for saving.
@@ -190,11 +204,14 @@ def psw(
     if len(logs) == 0:
         raise ValueError("At least one SAM45 log must be given.")
     if len(logs) == 1:
-        prefix = f"{Path(logs[0]).name}.{'+'.join(arrays)}.qlook.psw"
+        name = f"{Path(logs[0]).name}.{'+'.join(arrays)}.qlook.psw"
     else:
-        prefix = f"{Path(logs[0]).name}+.{'+'.join(arrays)}.qlook.psw"
+        name = f"{Path(logs[0]).name}+.{'+'.join(arrays)}.qlook.psw"
 
-    if (results := Path(f"{prefix}.pdf")).exists() and not overwrite:
+    if label is not None:
+        name = f"{name}.{label}"
+
+    if (results := Path(f"{name}.pdf")).exists() and not overwrite:
         raise FileExistsError(f"{results} already exists.")
 
     # Read SAM45 logs and arrays
@@ -212,6 +229,7 @@ def psw(
                 array,
                 time_binning=time_binning,
                 chan_binning=chan_binning,
+                chan_flip=chan_flip,
             )
 
             # swap ON/OFF for non-central beams
@@ -277,7 +295,7 @@ def psw(
                 simplefilter("ignore", category=RuntimeWarning)
                 eps = float(((X_sparse - X_sparse_) / X_sparse_).mean())
 
-            if np.isnan(eps) or abs(eps) < demist_threshold:
+            if abs(eps) < demist_threshold:
                 bar.update(demist_iterations - n)
                 break
             else:
@@ -314,7 +332,7 @@ def psw(
         tqdm(
             desc="Plotting/saving results",
             disable=not progress,
-            total=1 if simple else 2,
+            total=2 if detailed else 1,
         ) as bar,
         PdfPages(results) as pdf,
     ):
@@ -353,7 +371,7 @@ def psw(
         )
         bar.update(1)
 
-        if simple:
+        if not detailed:
             return results.resolve()
 
         pdf.savefig(
@@ -457,31 +475,51 @@ def plot_cumulative_info(
     ax.plot(
         S_polyfit.sel(chan=fit_ranges).exposure.mean("chan"),
         S_polyfit.sel(chan=fit_ranges).std("chan"),
-        label="PolyFit",
+        label="PolyFit (achieved)",
+        color=COLOR_POLYFIT,
+    )
+    ax.plot(
+        S_polyfit.sel(chan=fit_ranges).exposure.mean("chan"),
+        S_polyfit.sel(chan=fit_ranges).noise.mean("chan"),
+        label="PolyFit (expected)",
+        alpha=0.5,
+        color=COLOR_POLYFIT,
+        linestyle="dotted",
     )
     ax.plot(
         S_demist.sel(chan=fit_ranges).exposure.mean("chan"),
         S_demist.sel(chan=fit_ranges).std("chan"),
-        label="DE:MIST",
+        label="DE:MIST (achieved)",
+        color=COLOR_DEMIST,
     )
-    ax.set_title("Cumulative noise level")
-    ax.set_xlabel("Effective exposure time [s]")
-    ax.set_ylabel("Achieved noise level [K]")
+    ax.plot(
+        S_demist.sel(chan=fit_ranges).exposure.mean("chan"),
+        S_demist.sel(chan=fit_ranges).noise.mean("chan"),
+        label="DE:MIST (expected)",
+        alpha=0.5,
+        color=COLOR_DEMIST,
+        linestyle="dotted",
+    )
+    ax.set_title("Noise level (averaged over PolyFit ranges)")
+    ax.set_xlabel(f"{S_demist.exposure.long_name} [{S_demist.exposure.units}]")
+    ax.set_ylabel(f"Standard deviation [{S_demist.units}]")
 
     ax = axes[1]
     ax.plot(
         S_polyfit.sel(chan=fit_ranges).exposure.mean("chan"),
         S_polyfit.max("chan") / S_polyfit.sel(chan=fit_ranges).std("chan"),
         label="PolyFit",
+        color=COLOR_POLYFIT,
     )
     ax.plot(
         S_demist.sel(chan=fit_ranges).exposure.mean("chan"),
         S_demist.max("chan") / S_demist.sel(chan=fit_ranges).std("chan"),
         label="DE:MIST",
+        color=COLOR_DEMIST,
     )
-    ax.set_title("Maximum signal-to-noise ratio")
-    ax.set_xlabel("Effective exposure time [s]")
-    ax.set_ylabel("Maximum signal-to-noise ratio [1]")
+    ax.set_title("Maximum S/N (among analysis ranges)")
+    ax.set_xlabel(f"{S_demist.exposure.long_name} [{S_demist.exposure.units}]")
+    ax.set_ylabel(f"Maximum signal-to-noise ratio [1]")
     ax.set_ylim(1.0, None)
 
     for ax in axes:
@@ -526,53 +564,87 @@ def plot_integrated_info(
     spec_demist = S_demist.isel(time=-1).swap_dims(chan="frequency")
 
     ax = axes[0]
-    spec_polyfit.plot.step(
-        ax=ax,
+    ax.fill_between(
+        spec_polyfit.frequency,
+        spec_polyfit,
+        color=COLOR_POLYFIT,
+        ec="none",
         label=(
             # fmt: off
-            "PolyFit "
-            rf"($\alpha$ = {alpha_polyfit.mean():.2f} $\pm$ {alpha_polyfit.std():.2f})",
+            "Achieved "
+            rf"($\alpha$ = {alpha_polyfit.mean():.2f} $\pm$ {alpha_polyfit.std():.2f})"
             # fmt: on
         ),
+        step="mid",
     )
     ax.fill_between(
         spec_polyfit.frequency,
         -spec_polyfit.noise,
         +spec_polyfit.noise,
-        color="gray",
+        color=COLOR_POLYFIT,
         alpha=0.25,
         ec="none",
         label=r"Expected noise level ($\alpha = \sqrt{2}$)",
     )
+    ax.fill_between(
+        spec_polyfit.frequency,
+        0.0,
+        0.025,
+        color="lightgray",
+        ec="none",
+        label="Polynomial fit ranges",
+        transform=ax.get_xaxis_transform(),
+        where=spec_polyfit.fit_ranges,
+    )
     ax.set_title("Integrated spectrum (PolyFit)")
+    ax.set_xlabel(
+        f"{spec_polyfit.frequency.long_name} [{spec_polyfit.frequency.units}]"
+    )
+    ax.set_ylabel(f"{spec_polyfit.long_name} [{spec_polyfit.units}]")
 
     ax = axes[1]
-    spec_demist.plot.step(
-        ax=ax,
+    ax.fill_between(
+        spec_demist.frequency,
+        spec_demist,
+        color=COLOR_DEMIST,
+        ec="none",
         label=(
             # fmt: off
-            "DE:MIST "
+            "Achieved "
             rf"($\alpha$ = {alpha_demist.mean():.2f} $\pm$ {alpha_demist.std():.2f})"
             # fmt: on
         ),
+        step="mid",
     )
     ax.fill_between(
         spec_demist.frequency,
         -spec_demist.noise,
         +spec_demist.noise,
-        color="gray",
+        color=COLOR_DEMIST,
         alpha=0.25,
         ec="none",
         label=r"Expected noise level ($\alpha = 1$)",
     )
+    ax.fill_between(
+        spec_demist.frequency,
+        0.0,
+        0.025,
+        color="lightgray",
+        ec="none",
+        label="Estimated signal ranges",
+        transform=ax.get_xaxis_transform(),
+        where=spec_demist.signal_ranges,
+    )
     ax.set_title("Integrated spectrum (DE:MIST)")
+    ax.set_xlabel(f"{spec_demist.frequency.long_name} [{spec_demist.frequency.units}]")
+    ax.set_ylabel(f"{spec_demist.long_name} [{spec_demist.units}]")
 
     for ax in axes:
+        ax.grid()
+        ax.legend()
         ax.margins(x=0.0)
         ax.set_xlim(xlim)
         ax.set_ylim(ylim)
-        ax.legend()
-        ax.grid()
 
     fig.tight_layout()
     return fig
