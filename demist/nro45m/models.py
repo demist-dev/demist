@@ -248,4 +248,5 @@ def fit_sparse(
     signal.data = median_filter(signal.data, fit_prefilter)
     noise = SIGMA_OVER_MAD * mad(signal)
     signal[abs(signal / noise) < fit_threshold] = 0
+    signal = signal.assign_coords(signal_ranges=signal != 0)
     return (da.state == "ON") * signal

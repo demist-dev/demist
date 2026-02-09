@@ -586,6 +586,16 @@ def plot_integrated_info(
         ec="none",
         label=r"Expected noise level ($\alpha = \sqrt{2}$)",
     )
+    ax.fill_between(
+        spec_polyfit.frequency,
+        0.0,
+        0.025,
+        color="lightgray",
+        ec="none",
+        label="Polynomial fit ranges",
+        transform=ax.get_xaxis_transform(),
+        where=spec_polyfit.fit_ranges,
+    )
     ax.set_title("Integrated spectrum (PolyFit)")
     ax.set_xlabel(
         f"{spec_polyfit.frequency.long_name} [{spec_polyfit.frequency.units}]"
@@ -614,6 +624,16 @@ def plot_integrated_info(
         alpha=0.25,
         ec="none",
         label=r"Expected noise level ($\alpha = 1$)",
+    )
+    ax.fill_between(
+        spec_demist.frequency,
+        0.0,
+        0.025,
+        color="lightgray",
+        ec="none",
+        label="Estimated signal ranges",
+        transform=ax.get_xaxis_transform(),
+        where=spec_demist.signal_ranges,
     )
     ax.set_title("Integrated spectrum (DE:MIST)")
     ax.set_xlabel(f"{spec_demist.frequency.long_name} [{spec_demist.frequency.units}]")
