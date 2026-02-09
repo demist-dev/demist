@@ -371,9 +371,6 @@ def psw(
         )
         bar.update(1)
 
-        if not detailed:
-            return results.resolve()
-
         pdf.savefig(
             plot_cumulative_info(
                 S_demist=S_demist,
@@ -381,6 +378,9 @@ def psw(
                 figsize=figsize,
             )
         )
+
+        if not detailed:
+            return results.resolve()
 
         for fig in plot_timewise_info(
             figsize=figsize,
@@ -503,6 +503,7 @@ def plot_cumulative_info(
     ax.set_title("Noise level (averaged over PolyFit ranges)")
     ax.set_xlabel(f"{S_demist.exposure.long_name} [{S_demist.exposure.units}]")
     ax.set_ylabel(f"Standard deviation [{S_demist.units}]")
+    ax.legend(loc="upper right")
 
     ax = axes[1]
     ax.plot(
@@ -521,13 +522,13 @@ def plot_cumulative_info(
     ax.set_xlabel(f"{S_demist.exposure.long_name} [{S_demist.exposure.units}]")
     ax.set_ylabel(f"Maximum signal-to-noise ratio [1]")
     ax.set_ylim(1.0, None)
+    ax.legend(loc="upper left")
 
     for ax in axes:
+        ax.grid(True)
+        ax.margins(x=0.0)
         ax.set_xscale("log")
         ax.set_yscale("log")
-        ax.margins(x=0.0)
-        ax.legend()
-        ax.grid()
 
     fig.tight_layout()
     return fig
@@ -545,8 +546,10 @@ def plot_integrated_info(
     """Plot integrated information (spectra with noise levels)."""
     if horizontal:
         fig, axes = plt.subplots(1, 2, figsize=figsize, sharex=True, sharey=True)
+        ncol = 1
     else:
         fig, axes = plt.subplots(2, 1, figsize=figsize, sharex=True, sharey=True)
+        ncol = 3
 
     alpha_polyfit = (
         # fmt: off
@@ -640,8 +643,8 @@ def plot_integrated_info(
     ax.set_ylabel(f"{spec_demist.long_name} [{spec_demist.units}]")
 
     for ax in axes:
-        ax.grid()
-        ax.legend()
+        ax.grid(True)
+        ax.legend(loc="upper left", ncol=ncol)
         ax.margins(x=0.0)
         ax.set_xlim(xlim)
         ax.set_ylim(ylim)
