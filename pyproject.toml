@@ -1,7 +1,7 @@
 [project]
 name = "demist"
 version = "0.6.0"
-description = "DEcomposition of MIxed signals for Submillimeter Telescopes"
+description = "DEcomposition of MIxed Signals for millimeter/submillimeter Telescopes"
 readme = "README.md"
 keywords = [
     "astronomy",
