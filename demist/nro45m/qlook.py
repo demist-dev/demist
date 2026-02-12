@@ -31,8 +31,8 @@ from .. import __version__ as demist_version
 Range = tuple[float | None, float | None]
 
 # constants
-COLOR_DEMIST = "#1e50a2"  # https://www.colordic.org/colorsample/2069
-COLOR_POLYFIT = "#a22041"  # https://www.colordic.org/colorsample/2005
+COLOR_DEMIST = "#4d5aaf"  # https://www.colordic.org/colorsample/2061
+COLOR_POLYFIT = "#c53d43"  # https://www.colordic.org/colorsample/2440
 LOGGER = getLogger(__name__)
 
 
