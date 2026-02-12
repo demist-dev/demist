@@ -390,13 +390,13 @@ def psw(
         ):
             pdf.savefig(fig)
 
-        pdf.savefig(
-            plot_chanwise_info(
-                figsize=figsize,
-                T_demist=T_demist,
-                T_polyfit=T_polyfit,
-            )
-        )
+        for fig in plot_chanwise_info(
+            figsize=figsize,
+            T_demist=T_demist,
+            T_polyfit=T_polyfit,
+        ):
+            pdf.savefig(fig)
+
         bar.update(1)
         return results.resolve()
 
@@ -431,34 +431,46 @@ def plot_chanwise_info(
     T_demist: xr.DataArray,
     T_polyfit: xr.DataArray,
     figsize: tuple[float, float],
-) -> Figure:
+) -> list[Figure]:
     """Plot channel-wise information (covariance matrices)."""
-    fig, axes = plt.subplots(1, 2, figsize=figsize, sharey=True)
+    figs: list[Figure] = []
 
-    ax = axes[0]
-    cov_polyfit = cov(T_polyfit)
-    cov_polyfit.plot.pcolormesh(
-        ax=ax,
-        cmap="coolwarm",
-        rasterized=True,
-        vmin=-3.0 * (sigma := float(cov_polyfit.std())),
-        vmax=+3.0 * sigma,
-    )
-    ax.set_title("Normalized covariance (PolyFit)")
+    for group_polyfit, group_demist in zip(
+        T_polyfit.groupby("array"),
+        T_demist.groupby("array"),
+    ):
+        array_polyfit, T_polyfit_ = group_polyfit
+        array_demist, T_demist_ = group_demist
+        assert array_polyfit == array_demist
 
-    ax = axes[1]
-    cov_demist = cov(T_demist)
-    cov_demist.plot.pcolormesh(
-        ax=ax,
-        cmap="coolwarm",
-        rasterized=True,
-        vmin=-3.0 * sigma,
-        vmax=+3.0 * sigma,
-    )
-    ax.set_title("Normalized covariance (DE:MIST)")
+        fig, axes = plt.subplots(1, 2, figsize=figsize, sharey=True)
 
-    fig.tight_layout()
-    return fig
+        ax = axes[0]
+        cov_polyfit = cov(T_polyfit_)
+        cov_polyfit.plot.pcolormesh(
+            ax=ax,
+            cmap="coolwarm",
+            rasterized=True,
+            vmin=-3.0 * (sigma := float(cov_polyfit.std())),
+            vmax=+3.0 * sigma,
+        )
+        ax.set_title(f"Normalized covariance (PolyFit, {array_polyfit})")
+
+        ax = axes[1]
+        cov_demist = cov(T_demist_)
+        cov_demist.plot.pcolormesh(
+            ax=ax,
+            cmap="coolwarm",
+            rasterized=True,
+            vmin=-3.0 * sigma,
+            vmax=+3.0 * sigma,
+        )
+        ax.set_title(f"Normalized covariance (DE:MIST, {array_demist})")
+
+        fig.tight_layout()
+        figs.append(fig)
+
+    return figs
 
 
 def plot_cumulative_info(
@@ -467,7 +479,7 @@ def plot_cumulative_info(
     S_polyfit: xr.DataArray,
     figsize: tuple[float, float],
 ) -> Figure:
-    """Plot cumulative information (cumulative noise level and maximum S/N)."""
+    """Plot cumulative information (noise level and maximum S/N)."""
     fig, axes = plt.subplots(1, 2, figsize=figsize)
     fit_ranges = S_polyfit.fit_ranges
 

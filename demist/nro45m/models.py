@@ -102,8 +102,14 @@ def fit_integration(
     exposure = weight.cumsum("time") ** 2 / (weight**2 / da.exposure).cumsum("time")
 
     return signal.assign_coords(
-        exposure=exposure.assign_attrs(long_name="Effective exposure time"),
-        noise=noise.assign_attrs(long_name="Expected noise level"),
+        exposure=exposure.assign_attrs(
+            long_name="Effective exposure time",
+            units=da.exposure.units,
+        ),
+        noise=noise.assign_attrs(
+            long_name="Expected noise level",
+            units=sigma.units,
+        ),
     ).assign_attrs(
         long_name=r"$T_{\mathrm{A}}^{\ast}$",
         units=da.units,
