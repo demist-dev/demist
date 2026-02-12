@@ -18,7 +18,7 @@ identifiers:
     value: 10.5281/zenodo.18511482
 repository-code: 'https://github.com/demist-dev/demist'
 url: 'https://demist-dev.github.io/demist'
-abstract: DEcomposition of MIxed signals for Submillimeter Telescopes
+abstract: DEcomposition of MIxed Signals for millimeter/submillimeter Telescopes
 keywords:
   - astronomy
   - demist
@@ -29,5 +29,5 @@ keywords:
   - single-dish
   - submillimeter
 license: MIT
-version: 0.6.0
-date-released: '2026-02-09'
+version: 0.7.0
+date-released: '2026-02-12'

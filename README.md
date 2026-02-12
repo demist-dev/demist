@@ -6,7 +6,7 @@
 [![DOI](https://img.shields.io/badge/DOI-10.5281/zenodo.18511482-cornflowerblue?style=flat-square)](https://doi.org/10.5281/zenodo.18511482)
 [![Tests](https://img.shields.io/github/actions/workflow/status/demist-dev/demist/tests.yaml?label=Tests&style=flat-square)](https://github.com/demist-dev/demist/actions)
 
-DEcomposition of MIxed signals for Submillimeter Telescopes
+DEcomposition of MIxed Signals for millimeter/submillimeter Telescopes
 
 ## Installation
 
