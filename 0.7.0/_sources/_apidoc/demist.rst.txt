@@ -1,0 +1,23 @@
+demist package
+==============
+
+.. automodule:: demist
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+Subpackages
+-----------
+
+.. toctree::
+   :maxdepth: 2
+
+   demist.nro45m
+
+Submodules
+----------
+
+.. toctree::
+   :maxdepth: 2
+
+   demist.stats

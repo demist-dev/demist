@@ -1,0 +1,7 @@
+demist.stats module
+===================
+
+.. automodule:: demist.stats
+   :members:
+   :show-inheritance:
+   :undoc-members:
