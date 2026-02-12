@@ -7,6 +7,7 @@ from itertools import product
 from logging import DEBUG, getLogger
 from os import PathLike
 from pathlib import Path
+from textwrap import wrap
 from warnings import catch_warnings, simplefilter
 
 # dependencies
@@ -32,6 +33,7 @@ Range = tuple[float | None, float | None]
 
 # constants
 COLOR_DEMIST = "#4d5aaf"  # https://www.colordic.org/colorsample/2061
+COLOR_GENERAL = "#383c3c"  # https://www.colordic.org/colorsample/2401
 COLOR_POLYFIT = "#c53d43"  # https://www.colordic.org/colorsample/2440
 LOGGER = getLogger(__name__)
 
@@ -422,7 +424,13 @@ def cov(da: xr.DataArray, /) -> xr.DataArray:
 
 def edgena(da: xr.DataArray, /) -> xr.DataArray:
     """Set the edge time samples to N/A (for plotting)."""
-    da.loc[{"time": da.time[[0, -1]]}] = np.nan
+    index = {"time": da.time[[0, -1]]}
+    da.loc[index] = np.nan
+    da.pressure.loc[index] = np.nan
+    da.temperature.loc[index] = np.nan
+    da.vapor_pressure.loc[index] = np.nan
+    da.wind_speed.loc[index] = np.nan
+    da.wind_direction.loc[index] = np.nan
     return da
 
 
@@ -449,6 +457,7 @@ def plot_chanwise_info(
         cov_polyfit = cov(T_polyfit_)
         cov_polyfit.plot.pcolormesh(
             ax=ax,
+            cbar_kwargs={"location": "bottom"},
             cmap="coolwarm",
             rasterized=True,
             vmin=-3.0 * (sigma := float(cov_polyfit.std())),
@@ -460,6 +469,7 @@ def plot_chanwise_info(
         cov_demist = cov(T_demist_)
         cov_demist.plot.pcolormesh(
             ax=ax,
+            cbar_kwargs={"location": "bottom"},
             cmap="coolwarm",
             rasterized=True,
             vmin=-3.0 * sigma,
@@ -673,13 +683,53 @@ def plot_timewise_info(
     T_sys: xr.DataArray,
 ) -> list[Figure]:
     """Plot time-wise information (time-frequency plots)."""
+    T_polyfit = T_polyfit.groupby(["array", "observation"]).apply(edgena)
+    T_demist = T_demist.groupby(["array", "observation"]).apply(edgena)
+    T_sys = T_sys.groupby(["array", "observation"]).apply(edgena)
     figs: list[Figure] = []
 
-    for group in T_polyfit.groupby("array"):
-        fig, ax = plt.subplots(figsize=figsize)
+    fig, axes = plt.subplots(3, 1, figsize=figsize, sharex=True)
+    T_demist.temperature.plot(ax=axes[0], color=COLOR_GENERAL)
+    T_demist.pressure.plot(ax=axes[1], color=COLOR_GENERAL)
+    T_demist.vapor_pressure.plot(ax=axes[2], color=COLOR_GENERAL)
 
+    for ax in axes:
+        ax.grid(True)
+        ax.margins(x=0.0)
+        ax.set_ylabel("\n".join(wrap(ax.get_ylabel(), 15)))
+
+    fig.tight_layout()
+    figs.append(fig)
+
+    fig, axes = plt.subplots(2, 1, figsize=figsize, sharex=True)
+    T_demist.wind_direction.plot(ax=axes[0], color=COLOR_GENERAL)
+    T_demist.wind_speed.plot(ax=axes[1], color=COLOR_GENERAL)
+
+    for ax in axes:
+        ax.grid(True)
+        ax.margins(x=0.0)
+        ax.set_ylim(0.0, None)
+
+    fig.tight_layout()
+    figs.append(fig)
+
+    for group in T_sys.groupby("array"):
+        array, T_sys_ = group
+        fig, ax = plt.subplots(figsize=figsize)
+        T_sys_.swap_dims(chan="frequency").T.plot.pcolormesh(
+            ax=ax,
+            cmap="inferno",
+            rasterized=True,
+            vmin=float(T_sys.min()),
+            vmax=float(T_sys.max()),
+        )
+        ax.set_title(r"$T_{\mathrm{sys}}$ " f"({array})")
+        fig.tight_layout()
+        figs.append(fig)
+
+    for group in T_polyfit.groupby("array"):
         array, T_polyfit_ = group
-        T_polyfit_ = T_polyfit_.groupby("observation").apply(edgena)
+        fig, ax = plt.subplots(figsize=figsize)
         T_polyfit_.swap_dims(chan="frequency").T.plot.pcolormesh(
             ax=ax,
             cmap="coolwarm",
@@ -692,10 +742,8 @@ def plot_timewise_info(
         figs.append(fig)
 
     for group in T_demist.groupby("array"):
-        fig, ax = plt.subplots(figsize=figsize)
-
         array, T_demist_ = group
-        T_demist_ = T_demist_.groupby("observation").apply(edgena)
+        fig, ax = plt.subplots(figsize=figsize)
         T_demist_.swap_dims(chan="frequency").T.plot.pcolormesh(
             ax=ax,
             cmap="coolwarm",
@@ -704,22 +752,6 @@ def plot_timewise_info(
             vmax=+5.0 * sigma,
         )
         ax.set_title(r"$T_{\mathrm{A}}^{\ast}$ " f"(DE:MIST, {array})")
-        fig.tight_layout()
-        figs.append(fig)
-
-    for group in T_sys.groupby("array"):
-        fig, ax = plt.subplots(figsize=figsize)
-
-        array, T_sys_ = group
-        T_sys_ = T_sys_.groupby("observation").apply(edgena)
-        T_sys_.swap_dims(chan="frequency").T.plot.pcolormesh(
-            ax=ax,
-            cmap="inferno",
-            rasterized=True,
-            vmin=float(T_sys.min()),
-            vmax=float(T_sys.max()),
-        )
-        ax.set_title(r"$T_{\mathrm{sys}}$ " f"({array})")
         fig.tight_layout()
         figs.append(fig)
 

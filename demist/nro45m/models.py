@@ -67,9 +67,21 @@ def fit_background(
     )
 
     if model.sizes["time"] > 1:
-        return model.interp_like(da, kwargs={"fill_value": "extrapolate"})
+        return (
+            # fmt: off
+            model
+            .interp_like(da, kwargs={"fill_value": "extrapolate"})
+            .assign_coords(da.coords)
+            # fmt: on
+        )
     else:
-        return model.reindex_like(da, method="nearest")
+        return (
+            # fmt: off
+            model
+            .reindex_like(da, method="nearest")
+            .assign_coords(da.coords)
+            # fmt: on
+        )
 
 
 def fit_integration(

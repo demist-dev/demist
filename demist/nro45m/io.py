@@ -22,7 +22,6 @@ Array = Literal[
 ]
 
 # constants
-AMBIENT_TEMPERATURE = 273.0  # K
 DATETIME_FORMAT = "%Y%m%d%H%M%S.%f"
 TIMEZONE_JST = pd.Timedelta(9, "h")
 
@@ -119,6 +118,11 @@ def read(
                 np.full(len(time), obs["clog_id"].astype(np.str_)),
                 {"long_name": "Observation ID"},
             ),
+            "pressure": (
+                "time",
+                dat[dat_index]["dweather"][:, 1].astype(np.float64),
+                {"long_name": "Atmospheric pressure", "units": "hPa"},
+            ),
             "scan": (
                 "time",
                 dat[dat_index]["iline_no"].astype(np.int64),
@@ -131,18 +135,33 @@ def read(
             ),
             "temperature": (
                 "time",
-                np.full(len(time), AMBIENT_TEMPERATURE).astype(np.float64),
-                {"long_name": "Ambient temperature", "units": "K"},
+                dat[dat_index]["dweather"][:, 0].astype(np.float64) + 273.15,
+                {"long_name": "Atmospheric temperature", "units": "K"},
             ),
             "time": (
                 "time",
                 time,
                 {"long_name": "Observed time in UTC"},
             ),
+            "vapor_pressure": (
+                "time",
+                dat[dat_index]["dweather"][:, 2].astype(np.float64),
+                {"long_name": "Vapor pressure", "units": "hPa"},
+            ),
             "width": (
                 "chan",
                 np.full(len(chan), obs["dbechwid"][obs_index]) * 1e-9,
                 {"long_name": "Channel width", "units": "GHz"},
+            ),
+            "wind_direction": (
+                "time",
+                dat[dat_index]["dweather"][:, 4].astype(np.float64),
+                {"long_name": "Wind direction", "units": "deg"},
+            ),
+            "wind_speed": (
+                "time",
+                dat[dat_index]["dweather"][:, 3].astype(np.float64),
+                {"long_name": "Wind speed", "units": "m/s"},
             ),
         },
         attrs={
