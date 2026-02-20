@@ -14,6 +14,7 @@ from warnings import catch_warnings, simplefilter
 import matplotlib.pyplot as plt
 import numpy as np
 import xarray as xr
+from mpl_toolkits.axes_grid1 import make_axes_locatable
 from matplotlib.backends.backend_pdf import PdfPages
 from matplotlib.figure import Figure
 from ndtools import Any, Range as NDRange
@@ -33,7 +34,7 @@ Range = tuple[float | None, float | None]
 
 # constants
 COLOR_DEMIST = "#4d5aaf"  # https://www.colordic.org/colorsample/2061
-COLOR_GENERAL = "#383c3c"  # https://www.colordic.org/colorsample/2401
+COLOR_MARKER = "#4f455c"  # https://www.colordic.org/colorsample/2295
 COLOR_POLYFIT = "#c53d43"  # https://www.colordic.org/colorsample/2440
 LOGGER = getLogger(__name__)
 
@@ -351,38 +352,47 @@ def psw(
         pdfinfo["Title"] = "DE:MIST Quick-Look Results (NRO 45m PSW)"
         pdfinfo["Keywords"] = ", ".join(keywords)
 
-        pdf.savefig(
-            plot_integrated_info(
-                figsize=figsize,
-                horizontal=True,
-                S_demist=S_demist,
-                S_polyfit=S_polyfit,
-                xlim=xlim,
-                ylim=ylim,
-            )
+        fig = plot_integrated_info(
+            figsize=figsize,
+            horizontal=True,
+            S_demist=S_demist,
+            S_polyfit=S_polyfit,
+            xlim=xlim,
+            ylim=ylim,
         )
-        pdf.savefig(
-            plot_integrated_info(
-                figsize=figsize,
-                horizontal=False,
-                S_demist=S_demist,
-                S_polyfit=S_polyfit,
-                xlim=xlim,
-                ylim=ylim,
-            )
+        pdf.savefig(fig)
+        plt.close(fig)
+
+        fig = plot_integrated_info(
+            figsize=figsize,
+            horizontal=False,
+            S_demist=S_demist,
+            S_polyfit=S_polyfit,
+            xlim=xlim,
+            ylim=ylim,
         )
+        pdf.savefig(fig)
+        plt.close(fig)
         bar.update(1)
 
-        pdf.savefig(
-            plot_cumulative_info(
-                S_demist=S_demist,
-                S_polyfit=S_polyfit,
-                figsize=figsize,
-            )
+        fig = plot_cumulative_info(
+            S_demist=S_demist,
+            S_polyfit=S_polyfit,
+            figsize=figsize,
         )
+        pdf.savefig(fig)
+        plt.close(fig)
 
         if not detailed:
             return results.resolve()
+
+        for fig in plot_chanwise_info(
+            figsize=figsize,
+            T_demist=T_demist,
+            T_polyfit=T_polyfit,
+        ):
+            pdf.savefig(fig)
+            plt.close(fig)
 
         for fig in plot_timewise_info(
             figsize=figsize,
@@ -391,13 +401,7 @@ def psw(
             T_sys=T_sys,
         ):
             pdf.savefig(fig)
-
-        for fig in plot_chanwise_info(
-            figsize=figsize,
-            T_demist=T_demist,
-            T_polyfit=T_polyfit,
-        ):
-            pdf.savefig(fig)
+            plt.close(fig)
 
         bar.update(1)
         return results.resolve()
@@ -455,9 +459,12 @@ def plot_chanwise_info(
 
         ax = axes[0]
         cov_polyfit = cov(T_polyfit_)
+        divider = make_axes_locatable(ax)
+        cbar_ax = divider.append_axes("bottom", size="2.5%", pad=0.6)
         cov_polyfit.plot.pcolormesh(
             ax=ax,
-            cbar_kwargs={"location": "bottom"},
+            cbar_ax=cbar_ax,
+            cbar_kwargs={"orientation": "horizontal"},
             cmap="coolwarm",
             rasterized=True,
             vmin=-3.0 * (sigma := float(cov_polyfit.std())),
@@ -466,19 +473,23 @@ def plot_chanwise_info(
         ax.set_title(f"Normalized covariance (PolyFit, {array_polyfit})")
 
         ax = axes[1]
+        divider = make_axes_locatable(ax)
+        cbar_ax = divider.append_axes("bottom", size="2.5%", pad=0.6)
         cov_demist = cov(T_demist_)
         cov_demist.plot.pcolormesh(
             ax=ax,
-            cbar_kwargs={"location": "bottom"},
+            cbar_ax=cbar_ax,
+            cbar_kwargs={"orientation": "horizontal"},
             cmap="coolwarm",
             rasterized=True,
             vmin=-3.0 * sigma,
             vmax=+3.0 * sigma,
         )
         ax.set_title(f"Normalized covariance (DE:MIST, {array_demist})")
-
-        fig.tight_layout()
         figs.append(fig)
+
+    for fig in figs:
+        fig.subplots_adjust(0.10, 0.11, 0.97, 0.93, 0.25, 0.25)
 
     return figs
 
@@ -552,7 +563,7 @@ def plot_cumulative_info(
         ax.set_xscale("log")
         ax.set_yscale("log")
 
-    fig.tight_layout()
+    fig.subplots_adjust(0.10, 0.11, 0.97, 0.93, 0.25, 0.25)
     return fig
 
 
@@ -622,9 +633,7 @@ def plot_integrated_info(
         where=spec_polyfit.fit_ranges,
     )
     ax.set_title("Integrated spectrum (PolyFit)")
-    ax.set_xlabel(
-        f"{spec_polyfit.frequency.long_name} [{spec_polyfit.frequency.units}]"
-    )
+    ax.set_xlabel(None)
     ax.set_ylabel(f"{spec_polyfit.long_name} [{spec_polyfit.units}]")
 
     ax = axes[1]
@@ -671,7 +680,7 @@ def plot_integrated_info(
         ax.set_xlim(xlim)
         ax.set_ylim(ylim)
 
-    fig.tight_layout()
+    fig.subplots_adjust(0.10, 0.11, 0.97, 0.93, 0.25, 0.25)
     return fig
 
 
@@ -689,70 +698,100 @@ def plot_timewise_info(
     figs: list[Figure] = []
 
     fig, axes = plt.subplots(3, 1, figsize=figsize, sharex=True)
-    T_demist.temperature.plot(ax=axes[0], color=COLOR_GENERAL)
-    T_demist.pressure.plot(ax=axes[1], color=COLOR_GENERAL)
-    T_demist.vapor_pressure.plot(ax=axes[2], color=COLOR_GENERAL)
+
+    ax = axes[0]
+    T_demist.temperature.plot(ax=ax, color=COLOR_MARKER, ls="none", ms=1, marker=".")
+    ax.set_title("Ambient information (1)")
+    ax.set_xlabel(None)
+
+    ax = axes[1]
+    T_demist.pressure.plot(ax=ax, color=COLOR_MARKER, ls="none", ms=1, marker=".")
+    ax.set_xlabel(None)
+
+    ax = axes[2]
+    T_demist.vapor_pressure.plot(ax=ax, color=COLOR_MARKER, ls="none", ms=1, marker=".")
 
     for ax in axes:
         ax.grid(True)
         ax.margins(x=0.0)
         ax.set_ylabel("\n".join(wrap(ax.get_ylabel(), 15)))
 
-    fig.tight_layout()
     figs.append(fig)
 
     fig, axes = plt.subplots(2, 1, figsize=figsize, sharex=True)
-    T_demist.wind_direction.plot(ax=axes[0], color=COLOR_GENERAL)
-    T_demist.wind_speed.plot(ax=axes[1], color=COLOR_GENERAL)
+
+    ax = axes[0]
+    T_demist.wind_direction.plot(ax=ax, color=COLOR_MARKER, ls="none", ms=1, marker=".")
+    ax.set_title("Ambient information (2)")
+    ax.set_ylim(0.0, 360.0)
+    ax.set_xlabel(None)
+
+    ax = axes[1]
+    T_demist.wind_speed.plot(ax=ax, color=COLOR_MARKER, ls="none", ms=1, marker=".")
+    ax.set_ylim(0.0, None)
 
     for ax in axes:
         ax.grid(True)
         ax.margins(x=0.0)
-        ax.set_ylim(0.0, None)
 
-    fig.tight_layout()
     figs.append(fig)
 
-    for group in T_sys.groupby("array"):
-        array, T_sys_ = group
+    for group_T_sys, group_T_polyfit, group_T_demist in zip(
+        T_sys.groupby("array"),
+        T_polyfit.groupby("array"),
+        T_demist.groupby("array"),
+    ):
+        array_T_sys, T_sys_ = group_T_sys
+        array_T_polyfit, T_polyfit_ = group_T_polyfit
+        array_T_demist, T_demist_ = group_T_demist
+        assert array_T_sys == array_T_polyfit == array_T_demist
+
         fig, ax = plt.subplots(figsize=figsize)
+        divider = make_axes_locatable(ax)
+        cbar_ax = divider.append_axes("bottom", size="2.5%", pad=0.6)
         T_sys_.swap_dims(chan="frequency").T.plot.pcolormesh(
             ax=ax,
+            cbar_ax=cbar_ax,
+            cbar_kwargs={"orientation": "horizontal"},
             cmap="inferno",
             rasterized=True,
             vmin=float(T_sys.min()),
             vmax=float(T_sys.max()),
         )
-        ax.set_title(r"$T_{\mathrm{sys}}$ " f"({array})")
-        fig.tight_layout()
+        ax.set_title(r"$T_{\mathrm{sys}}$ " f"({array_T_sys})")
         figs.append(fig)
 
-    for group in T_polyfit.groupby("array"):
-        array, T_polyfit_ = group
         fig, ax = plt.subplots(figsize=figsize)
+        divider = make_axes_locatable(ax)
+        cbar_ax = divider.append_axes("bottom", size="2.5%", pad=0.6)
         T_polyfit_.swap_dims(chan="frequency").T.plot.pcolormesh(
             ax=ax,
+            cbar_ax=cbar_ax,
+            cbar_kwargs={"orientation": "horizontal"},
             cmap="coolwarm",
             rasterized=True,
             vmin=-5.0 * (sigma := float(T_polyfit.std())),
             vmax=+5.0 * sigma,
         )
-        ax.set_title(r"$T_{\mathrm{A}}^{\ast}$ " f"(PolyFit, {array})")
-        fig.tight_layout()
+        ax.set_title(r"$T_{\mathrm{A}}^{\ast}$ " f"(PolyFit, {array_T_polyfit})")
         figs.append(fig)
 
-    for group in T_demist.groupby("array"):
-        array, T_demist_ = group
         fig, ax = plt.subplots(figsize=figsize)
+        divider = make_axes_locatable(ax)
+        cbar_ax = divider.append_axes("bottom", size="2.5%", pad=0.6)
         T_demist_.swap_dims(chan="frequency").T.plot.pcolormesh(
             ax=ax,
+            cbar_ax=cbar_ax,
+            cbar_kwargs={"orientation": "horizontal"},
             cmap="coolwarm",
             rasterized=True,
             vmin=-5.0 * sigma,
             vmax=+5.0 * sigma,
         )
-        ax.set_title(r"$T_{\mathrm{A}}^{\ast}$ " f"(DE:MIST, {array})")
-        fig.tight_layout()
+        ax.set_title(r"$T_{\mathrm{A}}^{\ast}$ " f"(DE:MIST, {array_T_demist})")
         figs.append(fig)
+
+    for fig in figs:
+        fig.subplots_adjust(0.10, 0.11, 0.97, 0.93, 0.25, 0.25)
 
     return figs

@@ -155,7 +155,7 @@ def read(
             ),
             "wind_direction": (
                 "time",
-                dat[dat_index]["dweather"][:, 4].astype(np.float64),
+                dat[dat_index]["dweather"][:, 4].astype(np.float64) % 360,
                 {"long_name": "Wind direction", "units": "deg"},
             ),
             "wind_speed": (
