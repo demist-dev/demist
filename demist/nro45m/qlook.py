@@ -4,6 +4,7 @@ __all__ = ["otf", "psw"]
 from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 from itertools import product
+from json import dumps
 from logging import DEBUG, getLogger
 from os import PathLike
 from pathlib import Path
@@ -13,6 +14,7 @@ from warnings import catch_warnings, simplefilter
 # dependencies
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 import xarray as xr
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from matplotlib.backends.backend_pdf import PdfPages
@@ -162,7 +164,7 @@ def psw(
     progress: bool = True,
     # options for workarounds
     chan_flip: bool = False,
-) -> Path:
+) -> str:
     """Quick-look at a DE:MIST position-switching (PSW) observation.
 
     Args:
@@ -195,8 +197,9 @@ def psw(
         chan_flip: Whether to flip the channel order.
             Note that this is a temporary workaround for reading SAM45 logs
             with flipped channel order and will be removed in future versions.
+
     Returns:
-        Absolute path to the saved quick-look results.
+        JSON string containing the absolute paths to the saved quick-look results.
         If multiple logs are given, the first log name will be used for saving.
 
     """
@@ -214,8 +217,11 @@ def psw(
     if label is not None:
         name = f"{name}.{label}"
 
-    if (results := Path(f"{name}.pdf")).exists() and not overwrite:
-        raise FileExistsError(f"{results} already exists.")
+    if (results_csv := Path(f"{name}.csv")).exists() and not overwrite:
+        raise FileExistsError(f"{results_csv} already exists.")
+
+    if (results_pdf := Path(f"{name}.pdf")).exists() and not overwrite:
+        raise FileExistsError(f"{results_pdf} already exists.")
 
     # Read SAM45 logs and arrays
     with tqdm(
@@ -247,7 +253,7 @@ def psw(
         P = xr.concat(Ps, dim="time").sortby("time")
         P = P.sel(chan=P.frequency == analysis_ranges)
 
-    # run PolyFit (conventional) analysis
+    # Run PolyFit (conventional) analysis
     with tqdm(
         desc="Running PolyFit analysis",
         disable=not progress,
@@ -267,7 +273,7 @@ def psw(
         )
         bar.update(1)
 
-    # run DE:MIST (proposed) analysis
+    # Run DE:MIST (proposed) analysis
     with tqdm(
         desc="Running DE:MIST analysis",
         disable=not progress,
@@ -304,7 +310,7 @@ def psw(
             else:
                 bar.update(1)
 
-    # calculate final spectra
+    # Calculate final spectra
     with tqdm(
         desc="Calculating final spectra",
         disable=not progress,
@@ -330,15 +336,21 @@ def psw(
         )
         bar.update(1)
 
-    # plot and save results
+    # Plot and save results
     with (
         tqdm(
             desc="Plotting/saving results",
             disable=not progress,
-            total=2 if detailed else 1,
+            total=3 if detailed else 2,
         ) as bar,
-        PdfPages(results) as pdf,
+        PdfPages(results_pdf) as pdf,
     ):
+        tabulate_integrated_info(
+            S_demist=S_demist,
+            S_polyfit=S_polyfit,
+        ).to_csv(results_csv)
+        bar.update(1)
+
         keywords = [
             f"{key}={value}".replace(" ", "")
             for key, value in {
@@ -384,7 +396,12 @@ def psw(
         plt.close(fig)
 
         if not detailed:
-            return results.resolve()
+            return dumps(
+                {
+                    "CSV": str(results_csv.resolve()),
+                    "PDF": str(results_pdf.resolve()),
+                }
+            )
 
         for fig in plot_chanwise_info(
             figsize=figsize,
@@ -404,7 +421,12 @@ def psw(
             plt.close(fig)
 
         bar.update(1)
-        return results.resolve()
+        return dumps(
+            {
+                "CSV": str(results_csv.resolve()),
+                "PDF": str(results_pdf.resolve()),
+            }
+        )
 
 
 def cov(da: xr.DataArray, /) -> xr.DataArray:
@@ -795,3 +817,25 @@ def plot_timewise_info(
         fig.subplots_adjust(0.10, 0.11, 0.97, 0.93, 0.25, 0.25)
 
     return figs
+
+
+def tabulate_integrated_info(
+    *,
+    S_demist: xr.DataArray,
+    S_polyfit: xr.DataArray,
+) -> pd.DataFrame:
+    """Tabulate integrated information (spectra with noise levels)."""
+    spec_polyfit = S_polyfit.isel(time=-1).swap_dims(chan="frequency")
+    spec_demist = S_demist.isel(time=-1).swap_dims(chan="frequency")
+
+    return pd.DataFrame(
+        index=pd.Index(spec_polyfit.frequency.values, name="Rest frequency [GHz]"),
+        data={
+            "Integrated spectrum (PolyFit) [K]": spec_polyfit.values,
+            "Integrated spectrum (DE:MIST) [K]": spec_demist.values,
+            "Expected noise level (PolyFit) [K]": spec_polyfit.noise.values,
+            "Expected noise level (DE:MIST) [K]": spec_demist.noise.values,
+            "Fit ranges (PolyFit)": spec_polyfit.fit_ranges.values,
+            "Signal ranges (DE:MIST)": spec_demist.signal_ranges.values,
+        },
+    )
