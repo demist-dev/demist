@@ -73,15 +73,21 @@ def otf(
     lowrank_off_only: bool = False,
     lowrank_per_array: bool = True,
     lowrank_per_observation: bool = True,
+    lowrank_per_scans: int | None = 10,
     sparse_per_array: bool = False,
     sparse_per_observation: bool = False,
+    sparse_per_scans: int | None = None,
     sparse_prefilter: int = 3,
     sparse_threshold: float = 3.0,
+    # options for outlier detection and exclusion
+    outlier_per_array: bool = True,
+    outlier_per_observation: bool = True,
+    outlier_per_scans: int | None = 10,
+    outlier_threshold: float = 5.0,
     # options for saving the quick-look results
     detailed: bool = False,
     figsize: tuple[float, float] = (10, 5),
     label: str | None = None,
-    note: str | None = None,
     overwrite: bool = False,
     xlim: Range = (None, None),
     ylim: Range = (None, None),
@@ -105,10 +111,16 @@ def otf(
         lowrank_off_only: Whether to use only OFF samples for low-rank model fitting.
         lowrank_per_array: Whether to fit low-rank model per array.
         lowrank_per_observation: Whether to fit low-rank model per observation.
+        lowrank_per_scans: Number of consecutive scans to fit low-rank model independently.
         sparse_per_array: Whether to fit sparse model per array.
         sparse_per_observation: Whether to fit sparse model per observation.
+        sparse_per_scans: Number of consecutive scans to fit sparse model independently.
         sparse_prefilter: Size of median filter for sparse model fitting.
-        sparse_threshold: Absolute S/N threshold for sparse model fitting.
+        sparse_threshold: Absolute sigma threshold for sparse model fitting.
+        outlier_per_array: Whether to detect outliers per array.
+        outlier_per_observation: Whether to detect outliers per observation.
+        outlier_per_scans: Number of consecutive scans to detect outliers independently.
+        outlier_threshold: Absolute sigma threshold for outlier detection.
         detailed: Whether to save detailed information.
         figsize: Size of the saved quick-look results.
         label: Additional label for the file name of the saved quick-look results.
@@ -120,9 +132,8 @@ def otf(
         progress: Whether to display progress bar.
 
     Returns:
-        Absolute path to the saved quick-look results.
-        If multiple logs are given, the first log's name will be used for saving.
-
+        JSON string containing the absolute paths to the saved quick-look results.
+        If multiple logs are given, the first log name will be used for saving.
     """
     with set_logger(debug):
         for key, val in (params := locals().copy()).items():
@@ -148,7 +159,7 @@ def psw(
     lowrank_off_only: bool = False,
     lowrank_per_array: bool = True,
     lowrank_per_observation: bool = True,
-    lowrank_per_scans: int | None = None,
+    lowrank_per_scans: int | None = 10,
     sparse_per_array: bool = False,
     sparse_per_observation: bool = False,
     sparse_per_scans: int | None = None,
@@ -157,13 +168,12 @@ def psw(
     # options for outlier detection and exclusion
     outlier_per_array: bool = True,
     outlier_per_observation: bool = True,
-    outlier_per_scans: int | None = None,
-    outlier_threshold: float | None = 3.0,
+    outlier_per_scans: int | None = 10,
+    outlier_threshold: float = 5.0,
     # options for saving the quick-look results
     detailed: bool = False,
     figsize: tuple[float, float] = (10, 5),
     label: str | None = None,
-    note: str | None = None,
     overwrite: bool = False,
     xlim: Range = (None, None),
     ylim: Range = (None, None),
@@ -210,7 +220,6 @@ def psw(
     Returns:
         JSON string containing the absolute paths to the saved quick-look results.
         If multiple logs are given, the first log name will be used for saving.
-
     """
     with set_logger(debug):
         for key, val in (params := locals().copy()).items():
@@ -273,29 +282,28 @@ def psw(
         T: xr.DataArray = P.temperature * (P - P_sky) / (P_cal - P_sky)
         X: xr.DataArray = np.log(-(P - P_cal) / P.temperature)
 
-        if outlier_threshold is not None:
-            X_lowrank = fit_lowrank(
-                X,
-                fit_components=lowrank_components,
-                fit_off_only=True,
-                fit_per_array=outlier_per_array,
-                fit_per_observation=outlier_per_observation,
-                fit_per_scans=outlier_per_scans,
-            )
-            use = ~fit_outliers(
-                X_lowrank,
-                fit_per_array=outlier_per_array,
-                fit_per_observation=outlier_per_observation,
-                fit_per_scans=outlier_per_scans,
-                method="lowrank",
-                threshold=outlier_threshold,
-            )
+        X_lowrank = fit_lowrank(
+            X,
+            fit_components=lowrank_components,
+            fit_off_only=True,
+            fit_per_array=outlier_per_array,
+            fit_per_observation=outlier_per_observation,
+            fit_per_scans=outlier_per_scans,
+        )
+        use = ~fit_outliers(
+            X_lowrank,
+            fit_per_array=outlier_per_array,
+            fit_per_observation=outlier_per_observation,
+            fit_per_scans=outlier_per_scans,
+            method="lowrank",
+            threshold=outlier_threshold,
+        )
 
-            P = P.assign_coords(use=use)
-            P_cal = P_cal.assign_coords(use=use)
-            P_sky = P_sky.assign_coords(use=use)
-            T = T.assign_coords(use=use)
-            X = X.assign_coords(use=use)
+        P = P.assign_coords(use=use)
+        P_cal = P_cal.assign_coords(use=use)
+        P_sky = P_sky.assign_coords(use=use)
+        T = T.assign_coords(use=use)
+        X = X.assign_coords(use=use)
 
         bar.update(1)
 
@@ -875,3 +883,47 @@ def tabulate_integrated_info(
             "Signal ranges (DE:MIST)": spec_demist.signal_ranges.values,
         },
     )
+
+
+"""
+        fig, ax = plt.subplots(figsize=figsize)
+        T_demist_.use.astype(float).plot(
+            ax=ax, color=COLOR_MARKER, ls="none", ms=1, marker="."
+        )
+        ax.grid(True)
+        ax.set_ylim(-0.05, +1.05)
+        ax.margins(x=0.0)
+
+        ax.set_title(f"(Inclusion flag, {array_T_demist})")
+        figs.append(fig)
+        # fig, ax = plt.subplots(figsize=figsize)
+
+        # for i in range(5):
+        #     l = T_demist_[f"lowrank_{i}"]
+        #     ((l - l.mean()) / l.std()).plot.line(
+        #         ax=ax, ls="none", ms=1, marker=".", label=f"Low-rank {i+1}"
+        #     )
+
+        # ax.grid(True)
+        # ax.margins(x=0.0)
+        # ax.legend()
+
+        # ax.set_title(f"(DE:MIST low-rank, {array_T_demist})")
+        # figs.append(fig)
+
+        # fig, ax = plt.subplots(figsize=figsize)
+
+        # for i in range(5):
+        #     l = T_demist_[f"lowrank_{i}"]
+        #     ((l - l.mean()) / l.std()).plot.hist(
+        #         ax=ax, label=f"Low-rank {i+1}", alpha=0.25, bins=50
+        #     )
+
+        # ax.grid(True)
+        # ax.set_xlim(-5.0, +5.0)
+        # ax.margins(x=0.0)
+        # ax.legend()
+
+        # ax.set_title(f"(DE:MIST low-rank, {array_T_demist})")
+        # figs.append(fig)
+"""
