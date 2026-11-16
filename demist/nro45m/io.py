@@ -33,7 +33,6 @@ def read(
     *,
     chan_binning: int = 1,
     time_binning: int = 1,
-    chan_flip: bool = False,
 ) -> xr.DataArray:
     """Read a SAM45 log to create a DataArray of an array.
 
@@ -42,9 +41,6 @@ def read(
         array: Array name to read (A1-A32).
         chan_binning: Number of channels to bin together.
         time_binning: Number of time samples to bin together.
-        chan_flip: Whether to flip the channel order.
-            Note that this is a temporary workaround for reading SAM45 logs
-            with flipped channel order and will be removed in future versions.
 
     Returns:
         DataArray of the array.
@@ -68,9 +64,20 @@ def read(
     chan = np.arange(obs["ichannel"][obs_index])  # zero-based index
 
     # calculate DataArray coordinates
+    center_frequency = obs["dcent_freq"][obs_index]  # Hz
+    center_frequency_cal = obs["dfqdat_f0"][obs_index]  # Hz
+
     x_0, x_1 = obs["dfqdat_ch"][obs_index] - 1  # zero-based index
-    y_0, y_1 = obs["dfqdat_fq"][obs_index] * 1e-9  # GHz
-    frequency = (y_0 - y_1) / (x_0 - x_1) * (chan - x_0) + y_0  # GHz
+    y_0, y_1 = obs["dfqdat_fq"][obs_index]  # Hz
+    frequency_cal = (y_0 - y_1) / (x_0 - x_1) * (chan - x_0) + y_0  # Hz
+
+    if (sideband := obs["csid_type"][obs_index].astype(np.str_)) == "LSB":
+        frequency = center_frequency + (frequency_cal - center_frequency_cal)
+    elif sideband == "USB":
+        frequency = center_frequency - (frequency_cal - center_frequency_cal)
+    else:
+        raise ValueError(f"Invalid sideband: {sideband!r}")
+
     state = pd.Series(dat[dat_index]["cscan_type"].astype(np.str_))
     state = state.replace(r"^([A-Z]+).*$", r"\1", regex=True)
     state = state.to_numpy().astype(np.str_)
@@ -79,9 +86,6 @@ def read(
     att = np.where(state == "R", obs["iary_ifatt"][obs_index], 0)  # dB
     data = dat[dat_index]["fary_data"].astype(np.float64)
     data = (data - data[state == "ZERO"]) * (10 ** (att / 10))[:, np.newaxis]
-
-    if chan_flip:
-        data = data[:, ::-1]
 
     # create DataArray
     dataarray = xr.DataArray(
@@ -110,7 +114,7 @@ def read(
             ),
             "frequency": (
                 "chan",
-                frequency.astype(np.float64),
+                frequency.astype(np.float64) * 1e-9,
                 {"long_name": "Rest frequency", "units": "GHz"},
             ),
             "observation": (

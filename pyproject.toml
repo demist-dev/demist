@@ -13,18 +13,18 @@ keywords = [
     "single-dish",
     "submillimeter",
 ]
-requires-python = ">=3.10,<3.15"
+requires-python = ">=3.10,<4.0"
 dependencies = [
-    "fire>=0.7,<1",
-    "matplotlib>=3,<4",
-    "ndtools>=1,<2",
-    "numpy>=2,<3",
-    "pandas>=2,<3",
-    "sam45>=1,<2",
-    "scikit-learn>=1,<2",
-    "scipy>=1,<2",
-    "tqdm>=4,<5",
-    "xarray>=2025,<2027",
+    "fire>=0.7,<1.0",
+    "matplotlib>=3",
+    "ndtools>=1",
+    "numpy>=2",
+    "pandas>=2",
+    "sam45>=1",
+    "scikit-learn>=1",
+    "scipy>=1",
+    "tqdm>=4",
+    "xarray>=2025",
 ]
 classifiers = [
     "License :: OSI Approved :: MIT License",
@@ -38,7 +38,7 @@ classifiers = [
 
 [[project.authors]]
 name = "Akio Taniguchi"
-email = "a-taniguchi@mail.kitami-it.ac.jp"
+email = "mail@taniguchiak.io"
 
 [project.license]
 file = "LICENSE"
@@ -52,14 +52,14 @@ repository = "https://github.com/demist-dev/demist"
 
 [dependency-groups]
 dev = [
-    "black>=25,<27",
-    "ipython>=8,<10",
-    "myst-parser>=3,<5",
-    "pandas-stubs>=2,<3",
-    "pydata-sphinx-theme>=0.16,<1.0",
-    "pyright>=1,<2",
-    "pytest>=9,<10",
-    "sphinx>=8,<9",
+    "black>=26",
+    "ipython>=8",
+    "myst-parser>=4",
+    "pandas-stubs>=2",
+    "pydata-sphinx-theme>=0.19",
+    "pyright>=1",
+    "pytest>=9",
+    "sphinx>=8",
 ]
 
 [build-system]
