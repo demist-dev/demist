@@ -107,6 +107,7 @@ def apply(
         coord_func=coord_func,
         side=side,
     )
+    options = {key: val for key, val in options.items() if val is not None}
 
     if isinstance(func, str):
         reduced = getattr(coarsened, func)(
