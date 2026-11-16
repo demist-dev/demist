@@ -147,8 +147,10 @@ def psw(
     lowrank_off_only: bool = False,
     lowrank_per_array: bool = True,
     lowrank_per_observation: bool = True,
+    lowrank_per_scans: int | None = None,
     sparse_per_array: bool = False,
     sparse_per_observation: bool = False,
+    sparse_per_scans: int | None = None,
     sparse_prefilter: int = 3,
     sparse_threshold: float = 3.0,
     # options for saving the quick-look results
@@ -179,8 +181,10 @@ def psw(
         lowrank_off_only: Whether to use only OFF samples for low-rank model fitting.
         lowrank_per_array: Whether to fit low-rank model per array.
         lowrank_per_observation: Whether to fit low-rank model per observation.
+        lowrank_per_scans: Number of consecutive scans to fit low-rank model independently.
         sparse_per_array: Whether to fit sparse model per array.
         sparse_per_observation: Whether to fit sparse model per observation.
+        sparse_per_scans: Number of consecutive scans to fit sparse model independently.
         sparse_prefilter: Size of median filter for sparse model fitting.
         sparse_threshold: Absolute S/N threshold for sparse model fitting.
         detailed: Whether to save detailed information.
@@ -262,8 +266,6 @@ def psw(
             T,
             fit_degree=polyfit_degree,
             fit_ranges=polyfit_ranges,
-            fit_per_array=True,
-            fit_per_observation=True,
         )
         bar.update(1)
 
@@ -283,6 +285,7 @@ def psw(
                 fit_off_only=lowrank_off_only,
                 fit_per_array=lowrank_per_array,
                 fit_per_observation=lowrank_per_observation,
+                fit_per_scans=lowrank_per_scans,
             )
 
             X_sparse_ = X_sparse
@@ -292,6 +295,7 @@ def psw(
                 fit_per_observation=sparse_per_observation,
                 fit_prefilter=sparse_prefilter,
                 fit_threshold=sparse_threshold,
+                fit_per_scans=sparse_per_scans,
             )
 
             with catch_warnings():
