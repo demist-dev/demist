@@ -316,7 +316,7 @@ def fit_outliers(
         fit_per_observation: Whether to fit per observation.
         fit_per_scans: Number of consecutive scans to fit independently.
         method: Prefix of the coefficient coordinates (lowrank or polyfit).
-        threshold: Z-score threshold for outlier detection.
+        threshold: Absolute sigma threshold for outlier detection.
 
     Returns:
         1D boolean DataArray indicating outlier scans.
@@ -374,8 +374,8 @@ def fit_sparse(
     da: xr.DataArray,
     /,
     *,
-    fit_per_array: bool = False,
-    fit_per_observation: bool = False,
+    fit_per_array: bool = True,
+    fit_per_observation: bool = True,
     fit_per_scans: int | None = None,
     fit_prefilter: int = 3,
     fit_threshold: float = 3.0,
@@ -388,7 +388,7 @@ def fit_sparse(
         fit_per_observation: Whether to fit per observation.
         fit_per_scans: Number of consecutive scans to fit independently.
         fit_prefilter: Size of the median filter before signal detection.
-        fit_threshold: Absolute S/N threshold for signal detection.
+        fit_threshold: Absolute sigma threshold for signal detection.
 
     Returns:
         Modeled sparse DataArray.

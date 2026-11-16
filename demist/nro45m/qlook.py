@@ -26,6 +26,7 @@ from .models import (
     fit_integration,
     fit_lowrank,
     fit_polynomial,
+    fit_outliers,
     fit_sparse,
 )
 from .io import Array, read
@@ -153,6 +154,11 @@ def psw(
     sparse_per_scans: int | None = None,
     sparse_prefilter: int = 3,
     sparse_threshold: float = 3.0,
+    # options for outlier detection and exclusion
+    outlier_per_array: bool = True,
+    outlier_per_observation: bool = True,
+    outlier_per_scans: int | None = None,
+    outlier_threshold: float | None = 3.0,
     # options for saving the quick-look results
     detailed: bool = False,
     figsize: tuple[float, float] = (10, 5),
@@ -186,7 +192,11 @@ def psw(
         sparse_per_observation: Whether to fit sparse model per observation.
         sparse_per_scans: Number of consecutive scans to fit sparse model independently.
         sparse_prefilter: Size of median filter for sparse model fitting.
-        sparse_threshold: Absolute S/N threshold for sparse model fitting.
+        sparse_threshold: Absolute sigma threshold for sparse model fitting.
+        outlier_per_array: Whether to detect outliers per array.
+        outlier_per_observation: Whether to detect outliers per observation.
+        outlier_per_scans: Number of consecutive scans to detect outliers independently.
+        outlier_threshold: Absolute sigma threshold for outlier detection.
         detailed: Whether to save detailed information.
         figsize: Size of the saved quick-look results.
         label: Additional label for the file name of the saved quick-look results.
@@ -251,9 +261,8 @@ def psw(
         P = xr.concat(Ps, dim="time").sortby("time")
         P = P.sel(chan=P.frequency == analysis_ranges)
 
-    # Run PolyFit (conventional) analysis
     with tqdm(
-        desc="Running PolyFit analysis",
+        desc="Detecting/excluding outliers",
         disable=not progress,
         total=1,
     ) as bar:
@@ -262,6 +271,39 @@ def psw(
         P = P.sel(time=P.state.isin(["ON", "OFF"]))
 
         T: xr.DataArray = P.temperature * (P - P_sky) / (P_cal - P_sky)
+        X: xr.DataArray = np.log(-(P - P_cal) / P.temperature)
+
+        if outlier_threshold is not None:
+            X_lowrank = fit_lowrank(
+                X,
+                fit_components=lowrank_components,
+                fit_off_only=True,
+                fit_per_array=outlier_per_array,
+                fit_per_observation=outlier_per_observation,
+                fit_per_scans=outlier_per_scans,
+            )
+            use = ~fit_outliers(
+                X_lowrank,
+                fit_per_array=outlier_per_array,
+                fit_per_observation=outlier_per_observation,
+                fit_per_scans=outlier_per_scans,
+                method="lowrank",
+                threshold=outlier_threshold,
+            )
+
+            P = P.assign_coords(use=use)
+            P_cal = P_cal.assign_coords(use=use)
+            P_sky = P_sky.assign_coords(use=use)
+            T = T.assign_coords(use=use)
+            X = X.assign_coords(use=use)
+
+        bar.update(1)
+
+    with tqdm(
+        desc="Running PolyFit analysis",
+        disable=not progress,
+        total=1,
+    ) as bar:
         T_poly = fit_polynomial(
             T,
             fit_degree=polyfit_degree,
@@ -269,13 +311,11 @@ def psw(
         )
         bar.update(1)
 
-    # Run DE:MIST (proposed) analysis
     with tqdm(
         desc="Running DE:MIST analysis",
         disable=not progress,
         total=demist_iterations,
     ) as bar:
-        X: xr.DataArray = np.log(-(P - P_cal) / P.temperature)
         X_sparse = xr.zeros_like(X)
 
         for n in range(demist_iterations):
@@ -308,7 +348,6 @@ def psw(
             else:
                 bar.update(1)
 
-    # Calculate final spectra
     with tqdm(
         desc="Calculating final spectra",
         disable=not progress,
@@ -334,7 +373,6 @@ def psw(
         )
         bar.update(1)
 
-    # Plot and save results
     with (
         tqdm(
             desc="Plotting/saving results",

@@ -198,6 +198,7 @@ def read(
             chan=dataarray.chan.astype(np.int64),
             exposure=dataarray.exposure * time_binning,
             scan=dataarray.scan.astype(np.int64),
+            use=dataarray.use.astype(np.bool_),
             width=dataarray.width * chan_binning,
         )
         .sortby("time")
