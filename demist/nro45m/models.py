@@ -3,6 +3,7 @@ __all__ = [
     "fit_integration",
     "fit_lowrank",
     "fit_polynomial",
+    "fit_outliers",
     "fit_sparse",
 ]
 
@@ -286,6 +287,78 @@ def fit_polynomial(
                 # fmt: on
             }
         )
+    )
+
+
+def fit_outliers(
+    da: xr.DataArray,
+    /,
+    *,
+    fit_per_array: bool = True,
+    fit_per_observation: bool = True,
+    fit_per_scans: int | None = None,
+    method: str = "lowrank",
+    threshold: float = 3.0,
+) -> xr.DataArray:
+    """Detect outlier scans based on low-rank or polynomial coefficients.
+
+    Args:
+        da: DataArray to fit.
+        fit_per_array: Whether to fit per array.
+        fit_per_observation: Whether to fit per observation.
+        fit_per_scans: Number of consecutive scans to fit independently.
+        method: Prefix of the coefficient coordinates (lowrank or polyfit).
+        threshold: Z-score threshold for outlier detection.
+
+    Returns:
+        1D boolean DataArray indicating outlier scans.
+    """
+    groups: list[str] = []
+
+    if fit_per_array:
+        groups.append("array")
+
+    if fit_per_observation:
+        groups.append("observation")
+
+    if fit_per_scans is not None:
+        if fit_per_observation:
+            phase = da.scan.groupby("observation").map(phase_of)
+        else:
+            phase = phase_of(da.scan)
+
+        da = da.assign_coords(scanblock=phase // fit_per_scans)
+        groups.append("scanblock")
+
+    if groups:
+        return (
+            da.groupby(groups)
+            .apply(
+                fit_outliers,
+                fit_per_array=False,
+                fit_per_observation=False,
+                fit_per_scans=None,
+                method=method,
+                threshold=threshold,
+            )
+            .drop_vars("scanblock", errors="ignore")
+        )
+
+    coefs = xr.concat(
+        [
+            da.coords[key]
+            for key in da.coords.keys()
+            if isinstance(key, str) and key.startswith(f"{method}_")
+        ],
+        "component",
+    )
+    score = (coefs - coefs.mean("time")) / coefs.std("time")
+
+    return (
+        (abs(score) > threshold)
+        .any("component")
+        .groupby("scan")
+        .map(lambda da: da.any() | xr.zeros_like(da, dtype=bool))
     )
 
 
