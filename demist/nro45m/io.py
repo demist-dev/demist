@@ -147,6 +147,11 @@ def read(
                 time,
                 {"long_name": "Observed time in UTC"},
             ),
+            "use": (
+                "time",
+                np.ones(len(time)).astype(np.bool_),
+                {"long_name": "Inclusion flag for data analysis"},
+            ),
             "vapor_pressure": (
                 "time",
                 dat[dat_index]["dweather"][:, 2].astype(np.float64),
