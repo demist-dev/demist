@@ -200,7 +200,19 @@ def fit_lowrank(
 
     model = TruncatedSVD(fit_components, random_state=fit_seed)
     model.fit(da.sel(time=da.state == "OFF") if fit_off_only else da)
-    return xr.zeros_like(da) + model.inverse_transform(model.transform(da))
+    coefs = model.transform(da)
+
+    return (
+        # fmt: off
+        (xr.zeros_like(da) + model.inverse_transform(coefs))
+        .assign_coords(
+            {
+                f"lowrank_{i}": ("time", coefs[:, i])
+                for i in range(fit_components)
+            }
+        )
+        # fmt: on
+    )
 
 
 def fit_polynomial(
@@ -260,11 +272,20 @@ def fit_polynomial(
     fit_ranges = Any(NDRange(*args) for args in fit_ranges)
     da_fit = da.sel(chan=da.frequency == fit_ranges)
     model = da_fit.polyfit("chan", fit_degree)
+    coefs = model.polyfit_coefficients
 
     return (
-        xr.polyval(da_fit.chan, model.polyfit_coefficients)
+        xr.polyval(da_fit.chan, coefs)
         .interp_like(da, kwargs={"fill_value": "extrapolate"})
         .assign_coords(fit_ranges=da.frequency == fit_ranges)
+        .assign_coords(
+            {
+                # fmt: off
+                f"polyfit_{i}": ("time", coefs.sel(degree=i).data)
+                for i in range(fit_degree + 1)
+                # fmt: on
+            }
+        )
     )
 
 
