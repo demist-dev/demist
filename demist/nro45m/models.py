@@ -77,7 +77,7 @@ def fit_background(
         )
 
     model = (
-        da.sel(time=da.state == target)
+        da.sel(time=da.use & (da.state == target))
         .groupby("scan")
         .apply(mean, dim="time", keep_dims=True)
     )
@@ -116,6 +116,9 @@ def fit_integration(
     Returns:
         Modeled cumulative-integration DataArray.
     """
+    da = da.sel(time=da.use)
+    sigma = sigma.sel(time=sigma.use)
+
     # shuffle time samples
     np.random.seed(fit_seed)
     index = np.random.permutation(np.arange(da.sizes["time"]))
@@ -199,8 +202,13 @@ def fit_lowrank(
             .drop_vars("scanblock", errors="ignore")
         )
 
+    if fit_off_only:
+        da_fit = da.sel(time=da.use & (da.state == "OFF"))
+    else:
+        da_fit = da.sel(time=da.use)
+
     model = TruncatedSVD(fit_components, random_state=fit_seed)
-    model.fit(da.sel(time=da.state == "OFF") if fit_off_only else da)
+    model.fit(da_fit)
     coefs = model.transform(da)
 
     return (
@@ -416,7 +424,7 @@ def fit_sparse(
             .drop_vars("scanblock", errors="ignore")
         )
 
-    signal = da.sel(time=da.state == "ON").mean("time")
+    signal = da.sel(time=da.use & (da.state == "ON")).mean("time")
     signal.data = median_filter(signal.data, fit_prefilter)
     noise = SIGMA_OVER_MAD * mad(signal)
     signal[abs(signal / noise) < fit_threshold] = 0
